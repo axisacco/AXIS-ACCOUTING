@@ -1,0 +1,7 @@
+{
+  "name": "Axis Accounting",
+  "description": "Uma plataforma completa de contabilidade digital com dashboard financeiro, gestão de documentos, cronograma de receitas e acompanhamento de impostos, potencializada por IA.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
