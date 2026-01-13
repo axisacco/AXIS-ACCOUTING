@@ -1,7 +1,13 @@
 
 import React, { useState } from 'react';
+import { Client } from '../types';
 
-const InvoiceIssuance: React.FC = () => {
+interface InvoiceIssuanceProps {
+  focusedClient?: Client | null;
+}
+
+// Fixed InvoiceIssuance to accept focusedClient prop
+const InvoiceIssuance: React.FC<InvoiceIssuanceProps> = ({ focusedClient }) => {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     value: '',
@@ -41,7 +47,9 @@ const InvoiceIssuance: React.FC = () => {
     <div className="max-w-3xl mx-auto space-y-6">
       <header>
         <h2 className="text-2xl font-bold text-slate-800">Emissão de Nota Fiscal</h2>
-        <p className="text-slate-500">Informe os dados do serviço prestado para gerarmos sua nota.</p>
+        <p className="text-slate-500">
+          {focusedClient ? `Emitindo para: ${focusedClient.name}` : 'Informe os dados do serviço prestado para gerarmos sua nota.'}
+        </p>
       </header>
 
       <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 space-y-6">

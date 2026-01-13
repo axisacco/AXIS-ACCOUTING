@@ -1,149 +1,197 @@
 
 import React, { useState } from 'react';
-import { Client } from '../types';
+import { Client, TaxAnexo, UserAccount, UserRole, User, View } from '../types';
 
-const initialClients: Client[] = [
-  { id: '1', name: 'Tecnologia Avançada LTDA', identifier: '12.345.678/0001-90', email: 'contato@techavancada.com', status: 'active', type: 'PJ', createdAt: '2024-01-10' },
-  { id: '2', name: 'Ana Maria Ferreira', identifier: '123.456.789-00', email: 'ana.ferreira@email.com', status: 'active', type: 'PF', createdAt: '2024-03-22' },
-  { id: '3', name: 'Logística Express S.A.', identifier: '98.765.432/0001-21', email: 'financeiro@logexpress.com.br', status: 'inactive', type: 'PJ', createdAt: '2023-11-05' },
-];
+interface ClientManagementProps {
+  clients: Client[];
+  users: UserAccount[];
+  setUsers: React.Dispatch<React.SetStateAction<UserAccount[]>>;
+  onSelectClient?: (client: Client) => void;
+  onAddClient: (client: Client) => void;
+  onDeleteClient: (clientId: string) => void;
+  onUpdateClient?: (client: Client) => void;
+  currentUser?: User | null;
+  onViewChange?: (view: View) => void;
+}
 
-const ClientManagement: React.FC = () => {
-  const [clients, setClients] = useState<Client[]>(initialClients);
+const ADMIN_EMAIL_AUTH = 'adm@ad.com';
+
+const ClientManagement: React.FC<ClientManagementProps> = ({ 
+  clients, 
+  users, 
+  setUsers, 
+  onSelectClient, 
+  onAddClient, 
+  onDeleteClient, 
+  onUpdateClient,
+  currentUser,
+  onViewChange
+}) => {
   const [showForm, setShowForm] = useState(false);
-  const [newClient, setNewClient] = useState({ name: '', identifier: '', email: '', type: 'PJ' as 'PF' | 'PJ' });
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    name: '', 
+    nomeFantasia: '',
+    nomeEmpresario: '',
+    identifier: '', 
+    email: '', 
+    phone: '', 
+    type: 'PJ' as 'PF' | 'PJ', 
+    annualRevenue: '', 
+    taxAnexo: 'III' as TaxAnexo, 
+    status: 'active' as 'active' | 'inactive',
+    initialPassword: 'axis' + Math.floor(1000 + Math.random() * 9000)
+  });
 
-  const handleAddClient = (e: React.FormEvent) => {
-    e.preventDefault();
-    const client: Client = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: newClient.name,
-      identifier: newClient.identifier,
-      email: newClient.email,
-      type: newClient.type,
-      status: 'active',
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-    setClients([client, ...clients]);
+  const resetForm = () => {
+    setFormData({
+      name: '', nomeFantasia: '', nomeEmpresario: '', identifier: '', email: '', phone: '', type: 'PJ', 
+      annualRevenue: '', taxAnexo: 'III', status: 'active',
+      initialPassword: 'axis' + Math.floor(1000 + Math.random() * 9000)
+    });
     setShowForm(false);
-    setNewClient({ name: '', identifier: '', email: '', type: 'PJ' });
+  };
+
+  const isMasterAdmin = currentUser?.email.toLowerCase() === ADMIN_EMAIL_AUTH;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    const normalizedIdentifier = formData.identifier.trim();
+    const normalizedPass = formData.initialPassword.trim();
+
+    if (clients.some(c => c.identifier === normalizedIdentifier)) {
+      alert('Erro: Este CNPJ já possui uma empresa vinculada.'); return;
+    }
+
+    setIsProcessing(true);
+    const clientId = `CLI_${Date.now()}`;
+
+    const clientData: Client = {
+      id: clientId,
+      name: formData.name.trim(),
+      nomeFantasia: formData.nomeFantasia.trim(),
+      nomeEmpresario: formData.nomeEmpresario.trim(),
+      identifier: normalizedIdentifier,
+      email: normalizedEmail,
+      phone: formData.phone.trim(),
+      type: formData.type,
+      status: formData.status,
+      createdAt: new Date().toISOString().split('T')[0],
+      taxAnexo: formData.taxAnexo,
+      annualRevenue: parseFloat(formData.annualRevenue) || 0,
+    };
+
+    const newUser: UserAccount = {
+      id: `USR_${Date.now()}`,
+      name: formData.nomeEmpresario.trim(),
+      email: normalizedEmail,
+      phone: formData.phone.trim(),
+      role: UserRole.CLIENT,
+      createdAt: new Date().toISOString().split('T')[0],
+      lastLogin: 'Nunca',
+      status: 'active',
+      passwordHash: btoa(normalizedPass),
+      cnpjVinculado: normalizedIdentifier
+    };
+
+    setUsers(prev => [newUser, ...prev]);
+    onAddClient(clientData);
+
+    setIsProcessing(false);
+    resetForm();
+    alert(`Sucesso: Empresa e Login criados para ${normalizedEmail}`);
+  };
+
+  const handleDeleteRequest = (client: Client) => {
+    if (!isMasterAdmin) {
+      alert("ACESSO NEGADO: Apenas o administrador mestre pode excluir empresas.");
+      return;
+    }
+    if (window.confirm(`Deseja realmente excluir a empresa "${client.nomeFantasia}"?`)) {
+      onDeleteClient(client.id);
+    }
+  };
+
+  const handleAccessClient = (client: Client) => {
+    onSelectClient?.(client);
+    onViewChange?.(View.DASHBOARD); // Direciona para o Dashboard do cliente ao acessar
   };
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Gerenciamento de Clientes</h2>
-          <p className="text-slate-500">Cadastre e acompanhe a base de clientes da sua contabilidade.</p>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+        <div className="space-y-1">
+          <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Gestão de Empresas</h2>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Controle Central de Unidades</p>
         </div>
-        
-        <button 
-          onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-colors flex items-center justify-center space-x-2 font-medium shadow-md"
-        >
-          <span>{showForm ? 'Cancelar' : 'Novo Cliente'}</span>
-          {!showForm && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>}
+        <button onClick={() => setShowForm(true)} className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all">
+          Nova Empresa + Login
         </button>
       </header>
 
       {showForm && (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-100 animate-in slide-in-from-top duration-300">
-          <form onSubmit={handleAddClient} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase">Nome / Razão Social</label>
-              <input 
-                required
-                type="text" 
-                value={newClient.name}
-                onChange={(e) => setNewClient({...newClient, name: e.target.value})}
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                placeholder="Ex: Empresa Exemplo LTDA"
-              />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md">
+          <div className="bg-white w-full max-w-3xl rounded-[2.5rem] shadow-2xl p-10 overflow-y-auto max-h-[90vh]">
+            <div className="flex justify-between items-start mb-8">
+               <div>
+                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Cadastro Unificado</h3>
+                  <p className="text-slate-500 text-xs font-bold uppercase">Empresa, Empresário e Credenciais</p>
+               </div>
+               <button onClick={resetForm} className="p-2 hover:bg-slate-100 rounded-full">✕</button>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase">CPF ou CNPJ</label>
-              <input 
-                required
-                type="text" 
-                value={newClient.identifier}
-                onChange={(e) => setNewClient({...newClient, identifier: e.target.value})}
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                placeholder="00.000.000/0001-00"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase">E-mail de Contato</label>
-              <input 
-                required
-                type="email" 
-                value={newClient.email}
-                onChange={(e) => setNewClient({...newClient, email: e.target.value})}
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                placeholder="cliente@email.com"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase">Tipo</label>
-              <select 
-                value={newClient.type}
-                onChange={(e) => setNewClient({...newClient, type: e.target.value as 'PF' | 'PJ'})}
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-              >
-                <option value="PJ">Pessoa Jurídica (PJ)</option>
-                <option value="PF">Pessoa Física (PF)</option>
-              </select>
-            </div>
-            <div className="md:col-span-2 pt-2">
-              <button type="submit" className="w-full bg-slate-900 text-white py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors">
-                Finalizar Cadastro
-              </button>
-            </div>
-          </form>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input required placeholder="Razão Social" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full p-4 border rounded-2xl bg-slate-50 font-bold" />
+                <input required placeholder="Nome Fantasia" value={formData.nomeFantasia} onChange={(e) => setFormData({...formData, nomeFantasia: e.target.value})} className="w-full p-4 border rounded-2xl bg-slate-50 font-bold" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input required placeholder="Empresário" value={formData.nomeEmpresario} onChange={(e) => setFormData({...formData, nomeEmpresario: e.target.value})} className="w-full p-4 border rounded-2xl bg-slate-50 font-bold" />
+                <input required placeholder="CNPJ" value={formData.identifier} onChange={(e) => setFormData({...formData, identifier: e.target.value})} className="w-full p-4 border rounded-2xl bg-slate-50 font-bold" />
+              </div>
+              <div className="p-6 bg-blue-50 rounded-3xl border border-blue-100 space-y-4">
+                <input required type="email" placeholder="E-mail Login" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full p-4 border border-blue-200 rounded-2xl bg-white font-bold" />
+                <div className="p-4 bg-white border border-blue-200 rounded-2xl font-black text-blue-700 text-center uppercase tracking-widest">{formData.initialPassword}</div>
+              </div>
+              <button type="submit" disabled={isProcessing} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl">Confirmar Registro</button>
+            </form>
+          </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
         <table className="w-full text-left">
-          <thead>
-            <tr className="text-slate-400 text-xs font-semibold uppercase tracking-wider border-b border-slate-100">
-              <th className="px-6 py-4">Cliente</th>
-              <th className="px-6 py-4">Documento</th>
-              <th className="px-6 py-4">E-mail</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4 text-right">Ações</th>
+          <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase border-b">
+            <tr>
+              <th className="px-8 py-5">Empresa / Responsável</th>
+              <th className="px-8 py-5">CNPJ Vinculado</th>
+              <th className="px-8 py-5">Login</th>
+              <th className="px-8 py-5 text-right">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
-            {clients.map((client) => (
-              <tr key={client.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${client.type === 'PJ' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                      {client.name.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="font-medium text-slate-700">{client.name}</p>
-                      <p className="text-[10px] text-slate-400">Cadastrado em {client.createdAt}</p>
-                    </div>
-                  </div>
+          <tbody className="divide-y divide-slate-50">
+            {clients.map(client => (
+              <tr key={client.id} className="hover:bg-slate-50/50 transition-all group">
+                <td className="px-8 py-6">
+                  <p className="font-black text-slate-800 text-sm">{client.nomeFantasia}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">{client.nomeEmpresario}</p>
                 </td>
-                <td className="px-6 py-4 text-sm text-slate-600 font-mono">{client.identifier}</td>
-                <td className="px-6 py-4 text-sm text-slate-500">{client.email}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                    client.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
-                  }`}>
-                    {client.status === 'active' ? 'Ativo' : 'Inativo'}
-                  </span>
+                <td className="px-8 py-6">
+                  <span className="text-xs font-black text-slate-600 font-mono bg-slate-100 px-3 py-1 rounded-lg">{client.identifier}</span>
                 </td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end space-x-2">
-                    <button className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                <td className="px-8 py-6"><p className="text-xs font-bold text-slate-500">{client.email}</p></td>
+                <td className="px-8 py-6 text-right">
+                  <div className="flex justify-end items-center space-x-2">
+                    <button onClick={() => handleAccessClient(client)} className="px-5 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-sm">
+                      Acessar
                     </button>
-                    <button className="p-2 text-slate-400 hover:text-red-600 transition-colors">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    </button>
+                    {isMasterAdmin && (
+                      <button onClick={() => handleDeleteRequest(client)} className="px-5 py-2.5 bg-red-50 text-red-600 rounded-xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all">
+                        Excluir
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

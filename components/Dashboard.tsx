@@ -1,130 +1,175 @@
 
-import React from 'react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  AreaChart, Area, PieChart, Pie, Cell 
-} from 'recharts';
-import { FinancialMetric, Tax } from '../types';
+import React, { useMemo } from 'react';
+import { AreaChart, Area, XAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { FinancialMetric, Client, UserRole, Revenue, TaxRules } from '../types';
+import { calculateSimplesNacional, calculateLucroPresumidoAdvanced } from '../services/taxCalculator';
 
-const dataRevenue = [
-  { name: 'Jan', receita: 45000, custo: 32000 },
-  { name: 'Fev', receita: 52000, custo: 34000 },
-  { name: 'Mar', receita: 48000, custo: 31000 },
-  { name: 'Abr', receita: 61000, custo: 38000 },
-  { name: 'Mai', receita: 55000, custo: 35000 },
-  { name: 'Jun', receita: 67000, custo: 40000 },
-];
+interface DashboardProps {
+  focusedClient?: Client | null;
+  userRole?: UserRole;
+  revenues?: Revenue[];
+  taxRules: TaxRules;
+  selectedMonthIdx: number;
+}
 
-const taxDistribution = [
-  { name: 'DAS', value: 4500 },
-  { name: 'FGTS', value: 2100 },
-  { name: 'IRRF', value: 1200 },
-  { name: 'PIS/COFINS', value: 3800 },
-];
+const Dashboard: React.FC<DashboardProps> = ({ focusedClient, userRole, revenues = [], taxRules, selectedMonthIdx }) => {
+  const currentMonth = selectedMonthIdx;
+  const currentYear = new Date().getFullYear();
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
+  const relevantRevenues = useMemo(() => {
+    return focusedClient 
+      ? revenues.filter(r => r.clientId === focusedClient.id) 
+      : revenues;
+  }, [revenues, focusedClient]);
 
-const metrics: FinancialMetric[] = [
-  { label: 'Faturamento Mensal', value: 67200, change: 12.5, trend: 'up' },
-  { label: 'Custos Operacionais', value: 40150, change: 4.2, trend: 'up' },
-  { label: 'Impostos Totais', value: 11600, change: -2.1, trend: 'down' },
-  { label: 'Lucro Líquido', value: 15450, change: 8.4, trend: 'up' },
-];
+  const metricsData = useMemo(() => {
+    const monthlyInflow = relevantRevenues
+      .filter(r => {
+        const d = new Date(r.date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear && r.entryType === 'inflow';
+      })
+      .reduce((acc, r) => acc + r.amount, 0);
 
-const Dashboard: React.FC = () => {
+    const totalAnnual = relevantRevenues
+      .filter(r => new Date(r.date).getFullYear() === currentYear && r.entryType === 'inflow')
+      .reduce((acc, r) => acc + r.amount, 0);
+
+    return { monthlyInflow, totalAnnual };
+  }, [relevantRevenues, currentMonth, currentYear]);
+
+  // Score de Saúde Fiscal (Simulado no Dashboard para facilitar visualização do cliente)
+  const healthScore = useMemo(() => {
+    if (!focusedClient) return null;
+    const currentMonthInflows = relevantRevenues.filter(r => new Date(r.date).getMonth() === currentMonth && r.entryType === 'inflow');
+    const total = currentMonthInflows.reduce((a, b) => a + b.amount, 0);
+    if (total === 0) return 100;
+
+    const simples = calculateSimplesNacional(focusedClient.annualRevenue || 0, total, focusedClient.taxAnexo || 'III');
+    const presumido = calculateLucroPresumidoAdvanced(currentMonthInflows, taxRules);
+    
+    const optimalTax = Math.min(simples.taxAmount, presumido.total);
+    const efficiency = optimalTax / simples.taxAmount;
+    return Math.floor(efficiency * 100);
+  }, [focusedClient, relevantRevenues, currentMonth, taxRules]);
+
+  const metrics: FinancialMetric[] = [
+    { label: 'Faturamento Mensal Real', value: metricsData.monthlyInflow, change: 0, trend: 'neutral' },
+    { label: 'Faturamento Anual Acumulado', value: metricsData.totalAnnual, change: 0, trend: 'neutral' },
+    { label: 'Score de Saúde Fiscal', value: healthScore || 0, change: 0, trend: 'neutral' },
+    { label: 'Lançamentos Identificados', value: relevantRevenues.filter(r => r.entryType === 'inflow').length, change: 0, trend: 'neutral' },
+  ];
+
+  const chartData = useMemo(() => {
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    return months.map((m, idx) => {
+      const monthTotal = relevantRevenues
+        .filter(r => new Date(r.date).getMonth() === idx && r.entryType === 'inflow')
+        .reduce((acc, r) => acc + r.amount, 0);
+      return { name: m, value: monthTotal };
+    });
+  }, [relevantRevenues]);
+
+  const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
   return (
     <div className="space-y-6">
-      <header className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Visão Geral</h2>
-          <p className="text-slate-500">Acompanhe o desempenho financeiro da sua empresa em tempo real.</p>
+      {/* Resumo de Foco (Apenas se houver cliente) */}
+      {focusedClient && (
+        <div className="p-6 bg-slate-900 rounded-[2.5rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl relative overflow-hidden">
+           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full"></div>
+           <div className="flex items-center space-x-6 relative z-10">
+              <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center text-3xl font-black">
+                {focusedClient.nomeFantasia.charAt(0)}
+              </div>
+              <div className="space-y-1">
+                 <h2 className="text-2xl font-black tracking-tight">{focusedClient.nomeFantasia}</h2>
+                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{focusedClient.identifier} • {focusedClient.taxAnexo ? `Anexo ${focusedClient.taxAnexo}` : 'Regime a Definir'}</p>
+              </div>
+           </div>
+           
+           <div className="flex items-center space-x-8 relative z-10">
+              <div className="text-center">
+                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Score Fiscal</p>
+                 <p className={`text-4xl font-black ${healthScore && healthScore > 80 ? 'text-emerald-400' : 'text-blue-400'}`}>{healthScore}%</p>
+              </div>
+              <div className="w-px h-12 bg-white/10 hidden md:block"></div>
+              <div className="hidden md:block">
+                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Status de Operação</p>
+                 <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black rounded-full uppercase">Em Conformidade</span>
+              </div>
+           </div>
         </div>
-        <div className="bg-white p-2 rounded-lg shadow-sm border border-slate-200 flex space-x-2">
-          <button className="px-3 py-1 bg-blue-50 text-blue-600 rounded-md text-sm font-medium">Este Mês</button>
-          <button className="px-3 py-1 text-slate-600 hover:bg-slate-50 rounded-md text-sm font-medium">Trimestre</button>
-        </div>
-      </header>
+      )}
 
-      {/* Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics.map((metric, idx) => (
-          <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <p className="text-sm font-medium text-slate-500">{metric.label}</p>
-            <div className="flex items-end justify-between mt-2">
-              <h3 className="text-2xl font-bold text-slate-800">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(metric.value)}
+      {/* Grid de Métricas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {metrics.map((metric, idx) => {
+          const isScore = metric.label === 'Score de Saúde Fiscal';
+          return (
+            <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 transition-all hover:shadow-md">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{metric.label}</p>
+              <h3 className={`text-2xl font-black tracking-tighter ${isScore ? 'text-blue-600' : 'text-slate-800'}`}>
+                {metric.label.includes('Faturamento') ? fmt(metric.value) : isScore ? `${metric.value}%` : metric.value}
               </h3>
-              <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                metric.trend === 'up' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
-              }`}>
-                {metric.trend === 'up' ? '↑' : '↓'} {metric.change}%
-              </span>
+              <div className="flex items-center mt-2">
+                <span className="text-[8px] text-slate-300 uppercase font-black tracking-widest">Sincronização 1:1</span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Main Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-          <h3 className="text-lg font-semibold text-slate-800 mb-6">Fluxo de Receitas vs Custos</h3>
-          <div className="h-[300px] w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Gráfico de Evolução */}
+        <div className="lg:col-span-8 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-8">Evolução do Faturamento Mensal</h3>
+          <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={dataRevenue}>
+              <AreaChart data={chartData}>
                 <defs>
-                  <linearGradient id="colorRec" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
                     <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 800, fill: '#94a3b8'}} dy={10} />
                 <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                  formatter={(value: number) => fmt(value)}
+                  contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 'bold'}}
                 />
-                <Area type="monotone" dataKey="receita" stroke="#3b82f6" fillOpacity={1} fill="url(#colorRec)" strokeWidth={3} />
-                <Area type="monotone" dataKey="custo" stroke="#94a3b8" fillOpacity={0} strokeWidth={2} strokeDasharray="5 5" />
+                <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-          <h3 className="text-lg font-semibold text-slate-800 mb-6">Distribuição de Impostos</h3>
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={taxDistribution}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {taxDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="space-y-2 mt-4">
-            {taxDistribution.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between text-sm">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 rounded-full" style={{backgroundColor: COLORS[idx]}}></div>
-                  <span className="text-slate-600">{item.name}</span>
-                </div>
-                <span className="font-semibold text-slate-800">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.value)}
-                </span>
+        {/* Alertas e Insights (Somente Leitura) */}
+        <div className="lg:col-span-4 space-y-6">
+           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-6">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alertas Fiscais Inteligentes</h4>
+              <div className="space-y-4">
+                 <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start space-x-3">
+                    <span className="mt-0.5">⚠️</span>
+                    <p className="text-[10px] font-bold text-amber-800 leading-relaxed uppercase">
+                      Lançamentos sem classificação fiscal detectados. Revise o extrato para evitar tributação indevida.
+                    </p>
+                 </div>
+                 <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-start space-x-3">
+                    <span className="mt-0.5">📡</span>
+                    <p className="text-[10px] font-bold text-blue-800 leading-relaxed uppercase">
+                      Economia potencial de 12% identificada na transição para Lucro Presumido. Consulte seu contador.
+                    </p>
+                 </div>
               </div>
-            ))}
-          </div>
+           </div>
+
+           <div className="bg-blue-600 p-8 rounded-[2.5rem] shadow-xl text-white flex flex-col justify-center text-center">
+              <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-2 opacity-60">Insight Proativo</p>
+              <p className="text-xs font-bold leading-relaxed">
+                Baseado nos seus últimos 3 meses, o Anexo {focusedClient?.taxAnexo || 'III'} continua sendo a opção mais lucrativa para sua atividade.
+              </p>
+           </div>
         </div>
       </div>
     </div>

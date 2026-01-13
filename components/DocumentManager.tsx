@@ -1,110 +1,208 @@
 
-import React, { useState } from 'react';
-import { Document } from '../types';
+import React, { useState, useRef, useMemo } from 'react';
+import { Document, Client, User } from '../types';
 
-const initialDocs: Document[] = [
-  { id: '1', name: 'Contrato Social.pdf', type: 'PDF', uploadDate: '2024-05-15', size: '2.4 MB', category: 'contract' },
-  { id: '2', name: 'NF-e Maio 2024.pdf', type: 'PDF', uploadDate: '2024-06-01', size: '1.1 MB', category: 'invoice' },
-  { id: '3', name: 'Balancete_Q1.xlsx', type: 'Excel', uploadDate: '2024-04-10', size: '850 KB', category: 'tax_report' },
-  { id: '4', name: 'Comprovante DAS.png', type: 'Imagem', uploadDate: '2024-06-20', size: '400 KB', category: 'tax_report' },
-];
+interface DocumentManagerProps {
+  focusedClient?: Client | null;
+  documents: Document[];
+  setDocuments: React.Dispatch<React.SetStateAction<Document[]>>;
+  currentUser?: User | null;
+}
 
-const DocumentManager: React.FC = () => {
-  const [documents, setDocuments] = useState<Document[]>(initialDocs);
+const ADMIN_EMAIL_AUTH = 'adm@ad.com';
+
+const DocumentManager: React.FC<DocumentManagerProps> = ({ 
+  focusedClient, 
+  documents, 
+  setDocuments,
+  currentUser 
+}) => {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadingFileName, setUploadingFileName] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // REGRA DE OURO: Validação de Administrador Mestre
+  const isMasterAdmin = currentUser?.email.toLowerCase() === ADMIN_EMAIL_AUTH;
+
+  // Isolamento por Empresa (Mandatário)
+  const filteredDocs = useMemo(() => {
+    return documents.filter(doc => focusedClient ? doc.ownerId === focusedClient.id : true);
+  }, [documents, focusedClient]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isMasterAdmin) {
+      alert("Acesso Negado: Apenas o administrador pode enviar novos documentos.");
+      return;
+    }
+
+    if (!focusedClient) {
+      alert("Erro: Selecione uma empresa antes de realizar o upload.");
+      return;
+    }
+
     if (e.target.files && e.target.files.length > 0) {
-      setIsUploading(true);
       const file = e.target.files[0];
+      const fileSizeMB = file.size / (1024 * 1024);
       
-      // Simulating a network delay
-      setTimeout(() => {
-        const newDoc: Document = {
-          id: Math.random().toString(36).substr(2, 9),
-          name: file.name,
-          type: file.type.split('/')[1].toUpperCase(),
-          uploadDate: new Date().toISOString().split('T')[0],
-          size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-          category: 'other'
-        };
-        setDocuments([newDoc, ...documents]);
-        setIsUploading(false);
-      }, 1500);
+      setIsUploading(true);
+      setUploadProgress(0);
+      setUploadingFileName(file.name);
+      
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += Math.random() * 25;
+        if (progress >= 100) {
+          progress = 100;
+          setUploadProgress(100);
+          clearInterval(interval);
+          setTimeout(() => {
+            const newDoc: Document = {
+              id: `DOC_${Math.random().toString(36).substr(2, 9)}`,
+              name: file.name,
+              type: file.name.split('.').pop()?.toUpperCase() || 'FILE',
+              uploadDate: new Date().toISOString().split('T')[0],
+              size: fileSizeMB < 1 ? `${(file.size / 1024).toFixed(0)} KB` : `${fileSizeMB.toFixed(1)} MB`,
+              category: 'other',
+              ownerId: focusedClient.id
+            };
+            setDocuments(prev => [newDoc, ...prev]);
+            setIsUploading(false);
+            setUploadProgress(0);
+            setUploadingFileName('');
+          }, 500);
+        } else {
+          setUploadProgress(Math.floor(progress));
+        }
+      }, 150);
     }
   };
 
-  const categoryLabels = {
-    invoice: 'Nota Fiscal',
-    contract: 'Contrato',
-    tax_report: 'Relatório',
-    other: 'Outros'
+  const handleDeleteDocument = (id: string) => {
+    if (!isMasterAdmin) {
+      alert("Acesso Negado: Apenas o administrador pode excluir documentos.");
+      return;
+    }
+
+    if (confirm("Deseja excluir permanentemente este documento?")) {
+      setDocuments(prev => prev.filter(doc => doc.id !== id));
+    }
   };
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Documentos</h2>
-          <p className="text-slate-500">Gerencie seus arquivos contábeis com segurança.</p>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+        <div className="space-y-1">
+          <h2 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight uppercase">Repositório de Arquivos</h2>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">
+            {focusedClient ? `Visualizando: ${focusedClient.name}` : 'Acesso Global de Documentos'}
+          </p>
         </div>
         
-        <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-colors flex items-center justify-center space-x-2 font-medium shadow-md">
-          <span>{isUploading ? 'Enviando...' : 'Enviar Documento'}</span>
-          <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-        </label>
+        {/* Botão de Upload VISÍVEL APENAS PARA ADM e com Cliente Focado */}
+        {isMasterAdmin && focusedClient && (
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-blue-500/10 transition-all ${
+              isUploading ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
+            }`}
+          >
+            {isUploading ? 'Sincronizando...' : 'Novo Arquivo +'}
+            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+          </button>
+        )}
       </header>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-wrap gap-2">
-          {['Todos', 'Notas Fiscais', 'Contratos', 'Impostos'].map(filter => (
-            <button key={filter} className="px-3 py-1.5 text-sm font-medium rounded-md hover:bg-white hover:shadow-sm text-slate-600 transition-all border border-transparent hover:border-slate-200">
-              {filter}
-            </button>
-          ))}
+      {isUploading && (
+        <div className="bg-slate-900 border-l-4 border-blue-500 rounded-3xl p-6 shadow-2xl animate-in slide-in-from-top-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Enviando Arquivo</p>
+              <h4 className="font-black text-white text-sm truncate max-w-[250px]">{uploadingFileName}</h4>
+            </div>
+            <span className="text-2xl font-black text-blue-400">{uploadProgress}%</span>
+          </div>
+          <div className="relative w-full h-2 bg-white/10 rounded-full overflow-hidden">
+            <div className="absolute top-0 left-0 h-full bg-blue-500 transition-all duration-300 shadow-[0_0_10px_#3b82f6]" style={{ width: `${uploadProgress}%` }}></div>
+          </div>
         </div>
+      )}
 
+      {!isMasterAdmin && (
+        <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-center space-x-3">
+          <span className="text-xl">ℹ️</span>
+          <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest leading-relaxed">
+            Painel de Consulta: Download de guias e contratos liberado. O envio e exclusão são realizados exclusivamente pela sua equipe contábil.
+          </p>
+        </div>
+      )}
+
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
         <table className="w-full text-left">
-          <thead>
-            <tr className="text-slate-400 text-xs font-semibold uppercase tracking-wider border-b border-slate-100">
-              <th className="px-6 py-4">Nome do Arquivo</th>
-              <th className="px-6 py-4">Categoria</th>
-              <th className="px-6 py-4">Data de Upload</th>
-              <th className="px-6 py-4">Tamanho</th>
-              <th className="px-6 py-4 text-right">Ações</th>
+          <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b">
+            <tr>
+              <th className="px-8 py-6">Tipo</th>
+              <th className="px-8 py-6">Documento</th>
+              <th className="px-8 py-6">Data Upload</th>
+              <th className="px-8 py-6">Tamanho</th>
+              <th className="px-8 py-6 text-right">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
-            {documents.map((doc) => (
-              <tr key={doc.id} className="hover:bg-slate-50 transition-colors group">
-                <td className="px-6 py-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded flex items-center justify-center font-bold text-[10px]">
-                      {doc.type}
-                    </div>
-                    <span className="font-medium text-slate-700">{doc.name}</span>
-                  </div>
+          <tbody className="divide-y divide-slate-50">
+            {filteredDocs.length > 0 ? filteredDocs.map((doc) => (
+              <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors group">
+                <td className="px-8 py-6">
+                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-[10px] font-black border ${
+                     doc.type === 'PDF' ? 'bg-red-50 text-red-600 border-red-100' : 
+                     doc.type === 'XLSX' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                     'bg-slate-50 text-slate-500 border-slate-100'
+                   }`}>
+                     {doc.type}
+                   </div>
                 </td>
-                <td className="px-6 py-4">
-                  <span className="px-2 py-1 bg-slate-100 text-slate-600 text-[11px] font-bold rounded uppercase">
-                    {categoryLabels[doc.category as keyof typeof categoryLabels]}
-                  </span>
+                <td className="px-8 py-6">
+                  <span className="font-black text-sm text-slate-800 block group-hover:text-blue-600 transition-colors">{doc.name}</span>
                 </td>
-                <td className="px-6 py-4 text-slate-500 text-sm">{doc.uploadDate}</td>
-                <td className="px-6 py-4 text-slate-500 text-sm">{doc.size}</td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end space-x-2">
-                    <button className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <td className="px-8 py-6">
+                  <p className="text-xs font-bold text-slate-500">{doc.uploadDate.split('-').reverse().join('/')}</p>
+                </td>
+                <td className="px-8 py-6">
+                  <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-3 py-1 rounded-lg uppercase">{doc.size}</span>
+                </td>
+                <td className="px-8 py-6 text-right">
+                  <div className="flex justify-end items-center space-x-2">
+                    {/* Botão de Download: Sempre visível */}
+                    <button 
+                      title="Fazer Download"
+                      className="w-10 h-10 flex items-center justify-center bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                    >
+                      ⬇️
                     </button>
-                    <button className="p-2 text-slate-400 hover:text-red-600 transition-colors">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    </button>
+                    
+                    {/* Botão de Excluir: VISÍVEL APENAS PARA ADM */}
+                    {isMasterAdmin && (
+                      <button 
+                        onClick={() => handleDeleteDocument(doc.id)}
+                        title="Excluir Arquivo"
+                        className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                      >
+                        🗑️
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
-            ))}
+            )) : (
+              <tr>
+                <td colSpan={5} className="py-24 text-center">
+                  <div className="flex flex-col items-center justify-center space-y-4 opacity-30">
+                     <div className="text-4xl">📁</div>
+                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nenhum documento disponível para esta unidade</p>
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

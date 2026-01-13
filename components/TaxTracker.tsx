@@ -1,68 +1,84 @@
 
-import React from 'react';
-import { Tax } from '../types';
+import React, { useState, useMemo, useRef } from 'react';
+import { Tax, Client, UserRole } from '../types';
+import { sendTaxReminderWhatsApp } from '../services/notificationService';
 
-const taxes: Tax[] = [
-  { id: '1', name: 'DAS - Simples Nacional', amount: 4520.50, dueDate: '2024-06-20', status: 'paid' },
-  { id: '2', name: 'FGTS Mensal', amount: 2100.00, dueDate: '2024-06-07', status: 'paid' },
-  { id: '3', name: 'IRRF Prolabore', amount: 550.20, dueDate: '2024-06-20', status: 'pending' },
-  { id: '4', name: 'ISSQN Retido', amount: 1250.00, dueDate: '2024-06-15', status: 'overdue' },
-];
+interface TaxTrackerProps {
+  focusedClient?: Client | null;
+  userRole?: UserRole;
+  clients?: Client[];
+  taxes: Tax[];
+  setTaxes: React.Dispatch<React.SetStateAction<Tax[]>>;
+}
 
-const TaxTracker: React.FC = () => {
+const TaxTracker: React.FC<TaxTrackerProps> = ({ focusedClient, userRole, clients = [], taxes, setTaxes }) => {
+  const [showAddModal, setShowAddModal] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [newTax, setNewTax] = useState({ name: 'DAS - Simples Nacional', amount: '', dueDate: '', clientId: '', file: null as File | null });
+
+  const isAdmin = userRole === UserRole.ADMIN;
+
+  const filteredTaxes = useMemo(() => {
+    return taxes.filter(tax => focusedClient ? tax.clientId === focusedClient.id : true);
+  }, [taxes, focusedClient]);
+
+  const handleAddTax = (e: React.FormEvent) => {
+    e.preventDefault();
+    const tax: Tax = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: newTax.name,
+      amount: parseFloat(newTax.amount),
+      dueDate: newTax.dueDate,
+      status: 'pending',
+      clientId: focusedClient?.id || newTax.clientId,
+    };
+    setTaxes(prev => [tax, ...prev]);
+    setShowAddModal(false);
+  };
+
   return (
     <div className="space-y-6">
-      <header>
-        <h2 className="text-2xl font-bold text-slate-800">Meus Impostos</h2>
-        <p className="text-slate-500">Acompanhe seus vencimentos e reduza custos com planejamento.</p>
+      <header className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800">Impostos e Guias</h2>
+          <p className="text-slate-500 text-sm">{focusedClient ? `Guia exclusiva de ${focusedClient.name}` : 'Visão consolidada do escritório.'}</p>
+        </div>
+        {isAdmin && <button onClick={() => setShowAddModal(true)} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase">Nova Guia</button>}
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {taxes.map((tax) => (
-          <div key={tax.id} className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col justify-between hover:border-blue-200 transition-colors">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-slate-50 rounded-lg text-slate-600">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              </div>
-              <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full ${
-                tax.status === 'paid' ? 'bg-emerald-50 text-emerald-600' :
-                tax.status === 'pending' ? 'bg-amber-50 text-amber-600' :
-                'bg-red-50 text-red-600'
-              }`}>
-                {tax.status === 'paid' ? 'Pago' : tax.status === 'pending' ? 'Pendente' : 'Atrasado'}
-              </span>
+      {filteredTaxes.length === 0 ? (
+        <div className="py-20 text-center border-2 border-dashed rounded-3xl text-slate-400 font-black uppercase text-xs">Sem guias lançadas para esta empresa.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {filteredTaxes.map(tax => (
+            <div key={tax.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+              <span className="text-[9px] font-black uppercase text-blue-600">Vencimento: {tax.dueDate}</span>
+              <h3 className="font-black text-slate-800 mt-2">{tax.name}</h3>
+              <p className="text-xl font-black text-slate-900 mt-1">R$ {tax.amount.toFixed(2)}</p>
             </div>
-            
-            <div>
-              <h3 className="font-bold text-slate-800 text-lg mb-1">{tax.name}</h3>
-              <p className="text-sm text-slate-500 mb-4">Vencimento: <span className="font-medium text-slate-700">{tax.dueDate}</span></p>
-              
-              <div className="flex items-baseline space-x-2">
-                <span className="text-xs text-slate-400">Total:</span>
-                <span className="text-2xl font-bold text-slate-800">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tax.amount)}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6 pt-4 border-t border-slate-50 flex items-center justify-between">
-              <button className="text-blue-600 text-sm font-semibold hover:underline">Ver Guia</button>
-              {tax.status !== 'paid' && (
-                <button className="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-lg hover:bg-slate-800">Pagar Agora</button>
-              )}
-            </div>
-          </div>
-        ))}
-
-        <div className="bg-blue-600 rounded-xl shadow-lg p-6 text-white flex flex-col justify-center items-center text-center">
-          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-4">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          </div>
-          <h3 className="text-lg font-bold mb-2">Análise de Impostos</h3>
-          <p className="text-blue-100 text-sm mb-4">Sua empresa pagou R$ 1.2k a menos este trimestre comparado ao ano anterior.</p>
-          <button className="bg-white text-blue-600 px-4 py-2 rounded-lg text-sm font-bold">Ver Planejamento</button>
+          ))}
         </div>
-      </div>
+      )}
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl">
+            <h3 className="text-xl font-black uppercase mb-6">Lançamento de Imposto</h3>
+            <form onSubmit={handleAddTax} className="space-y-4">
+              {!focusedClient && (
+                <select required value={newTax.clientId} onChange={(e) => setNewTax({...newTax, clientId: e.target.value})} className="w-full p-4 border rounded-2xl bg-slate-50 font-bold">
+                  <option value="">Selecione a Empresa</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              )}
+              <input required type="number" placeholder="Valor" value={newTax.amount} onChange={(e) => setNewTax({...newTax, amount: e.target.value})} className="w-full p-4 border rounded-2xl bg-slate-50 font-bold" />
+              <input required type="date" value={newTax.dueDate} onChange={(e) => setNewTax({...newTax, dueDate: e.target.value})} className="w-full p-4 border rounded-2xl bg-slate-50 font-bold" />
+              <button type="submit" className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest">Publicar Guia</button>
+              <button type="button" onClick={() => setShowAddModal(false)} className="w-full text-slate-400 font-bold uppercase text-xs">Fechar</button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
