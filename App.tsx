@@ -29,6 +29,8 @@ const STORAGE_KEYS = {
   SIMPLES_HISTORY: 'axis_simples_v2'
 };
 
+const ADMIN_EMAIL_AUTH = 'adm@ad.com';
+
 const initialClients: Client[] = [
   { 
     id: '1', 
@@ -101,12 +103,37 @@ const App: React.FC = () => {
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.SIMPLES_HISTORY, JSON.stringify(simplesHistory)); }, [simplesHistory]);
 
   const handleLogin = (email: string, pass: string) => {
-    const hashed = btoa(pass);
-    const account = userAccounts.find(u => u.email.toLowerCase() === email.toLowerCase() && u.passwordHash === hashed);
+    // NORMALIZAÇÃO MANDATÁRIA
+    const normalizedEmailInput = email.trim().toLowerCase();
+    const normalizedPassInput = pass.trim();
+    const hashedInput = btoa(normalizedPassInput);
+
+    console.group('🛡️ Diagnóstico de Autenticação');
+    console.log('1. Email Recebido:', normalizedEmailInput);
+    console.log('2. Senha Recebida (Hashed):', hashedInput);
+
+    const account = userAccounts.find(u => {
+      const dbEmail = u.email.trim().toLowerCase();
+      const match = dbEmail === normalizedEmailInput && u.passwordHash === hashedInput;
+      if (dbEmail === normalizedEmailInput) {
+        console.log('👉 Usuário encontrado! Validando senha...');
+        console.log('   Hash no Banco:', u.passwordHash);
+        console.log('   Hash Digitado:', hashedInput);
+      }
+      return match;
+    });
 
     if (account) {
+      console.log('✅ LOGIN SUCESSO');
+      console.groupEnd();
       if (account.status !== 'active') { alert("Acesso Bloqueado."); return; }
-      const user: User = { id: account.id, name: account.name, role: account.role, cnpjVinculado: account.cnpjVinculado };
+      const user: User = { 
+        id: account.id, 
+        name: account.name, 
+        email: account.email.trim().toLowerCase(), 
+        role: account.role, 
+        cnpjVinculado: account.cnpjVinculado 
+      };
       setCurrentUser(user);
       if (user.role === UserRole.CLIENT && user.cnpjVinculado) {
         const client = clients.find(c => c.identifier === user.cnpjVinculado);
@@ -115,7 +142,9 @@ const App: React.FC = () => {
       setCurrentView(View.DASHBOARD);
       setUserAccounts(prev => prev.map(u => u.id === account.id ? {...u, lastLogin: new Date().toLocaleString('pt-BR')} : u));
     } else {
-      alert("Credenciais Inválidas.");
+      console.warn('❌ LOGIN FALHOU: Credenciais não coincidem');
+      console.groupEnd();
+      alert("Usuário ou senha incorretos.");
     }
   };
 
@@ -141,8 +170,26 @@ const App: React.FC = () => {
       onSelectClient: (c: Client) => { setFocusedClient(c); setCurrentView(View.DASHBOARD); },
       onAddClient: (c: Client) => setClients(prev => [c, ...prev]),
       onDeleteClient: async (id: string) => {
+        if (currentUser.email.toLowerCase() !== ADMIN_EMAIL_AUTH) {
+          alert("ERRO DE SEGURANÇA: Ação restrita ao administrador mestre (adm@ad.com).");
+          return;
+        }
+
+        const clientToDelete = clients.find(c => c.id === id);
+        if (!clientToDelete) return;
+
         const success = await deleteClientRequest(id);
-        if (success) setClients(prev => prev.filter(c => c.id !== id));
+        if (success) {
+          setClients(prev => prev.filter(c => c.id !== id));
+          setUserAccounts(prev => prev.filter(u => u.cnpjVinculado !== clientToDelete.identifier));
+          setRevenues(prev => prev.filter(r => r.clientId !== id));
+          setTaxes(prev => prev.filter(t => t.clientId !== id));
+          setDocuments(prev => prev.filter(d => d.ownerId !== id));
+          setSimplesHistory(prev => prev.filter(h => h.clientId !== id));
+          
+          if (focusedClient?.id === id) setFocusedClient(null);
+          alert(`EXCLUSÃO CONCLUÍDA: A empresa "${clientToDelete.nomeFantasia}" e todos os registros associados foram removidos.`);
+        }
       },
       onUpdateClient: (c: Client) => setClients(prev => prev.map(old => old.id === c.id ? c : old)),
       users: userAccounts,
@@ -184,13 +231,13 @@ const App: React.FC = () => {
         onLogout={handleLogout} hasActiveFocus={!!focusedClient}
       />
       <main className={`flex-1 transition-all duration-300 ease-in-out w-full ${isSidebarCollapsed ? 'md:ml-[68px]' : 'md:ml-64'}`}>
-        {currentUser.role === UserRole.ADMIN && focusedClient && (
+        {(currentUser.email === ADMIN_EMAIL_AUTH) && focusedClient && (
           <div className="sticky top-0 z-40 bg-amber-500 text-amber-950 px-4 md:px-6 py-2 flex items-center justify-between shadow-md">
             <div className="flex items-center space-x-2 text-[10px] md:text-xs font-bold uppercase truncate">
-              <span className="text-lg">👁️</span>
-              <span>Monitorando: <b>{focusedClient.name}</b></span>
+              <span className="text-lg">🛡️</span>
+              <span>ADMIN MODE: Monitorando <b>{focusedClient.name}</b></span>
             </div>
-            <button onClick={() => setFocusedClient(null)} className="text-[10px] font-black uppercase bg-white/20 hover:bg-white/40 px-3 py-1 rounded-lg">Ver Painel Global</button>
+            <button onClick={() => setFocusedClient(null)} className="text-[10px] font-black uppercase bg-white/20 hover:bg-white/40 px-3 py-1 rounded-lg">Voltar ao Global</button>
           </div>
         )}
         <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen">

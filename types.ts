@@ -28,6 +28,7 @@ export type TaxAnexo = 'I' | 'II' | 'III' | 'IV' | 'V';
 export interface User {
   id: string;
   name: string;
+  email: string; // Adicionado para validação de ADM definitivo
   role: UserRole;
   companyId?: string;
   cnpjVinculado?: string; 
@@ -66,7 +67,7 @@ export interface Client {
   email: string;
   phone?: string;
   status: 'active' | 'inactive';
-  type: 'PF' | 'PJ';
+  type: 'PJ' | 'PF';
   createdAt: string;
   taxAnexo?: TaxAnexo;
   annualRevenue?: number;
@@ -76,13 +77,30 @@ export interface SimplesCalculationResult {
   id: string;
   date: string;
   clientId: string;
-  rbt12: number;
-  monthlyRevenue: number;
-  payroll?: number;
-  fatorR?: number;
+  activity: string;
   anexo: TaxAnexo;
-  effectiveRate: number;
+  rbt12: number;
+  minSaleValue: number; 
+  proposedPrice: number;
   taxAmount: number;
+  effectiveRate: number;
+  costs: {
+    product: number;
+    shipping: number;
+    commission: number;
+    supplies: number;
+    labor: number;
+    others: number;
+    cardFeeAmount: number;
+    totalDirect: number;
+  };
+  cardFeePercent: number;
+  profitability: {
+    netProfit: number;
+    netMargin: number;
+    grossProfit: number;
+    grossMargin: number;
+  };
   breakdown: {
     irpj: number;
     csll: number;
