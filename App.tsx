@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import DocumentManager from './components/DocumentManager';
@@ -7,19 +7,48 @@ import TaxTracker from './components/TaxTracker';
 import RevenueSchedule from './components/RevenueSchedule';
 import AIChat from './components/AIChat';
 import ClientManagement from './components/ClientManagement';
-import IntelligentTaxManager from './components/IntelligentTaxManager';
+import InvoiceIssuance from './components/InvoiceIssuance';
+import TaxConsultancy from './components/TaxConsultancy';
 import PayrollManager from './components/PayrollManager';
 import PricingCalculator from './components/PricingCalculator';
+import FinancialPlanner from './components/FinancialPlanner';
 import AdminUserManager from './components/AdminUserManager';
 import SimplesCalculator from './components/SimplesCalculator';
-import PeopleManagement from './components/PeopleManagement';
 import Settings from './components/Settings';
 import Login from './components/Login';
-import { centralApi } from './services/apiService';
-import { View, UserRole, User, Client, UserAccount, Revenue, Tax, Employee, Document, TaxRules } from './types';
+import { View, UserRole, User, Client, UserAccount, Revenue, Tax, Employee, Document, SimplesCalculationResult } from './types';
+import { deleteClientRequest } from './services/clientService';
 
-const ADMIN_EMAIL_AUTH = 'adm@ad.com';
-const DEFAULT_ADMIN_PASS = '12345';
+const STORAGE_KEYS = {
+  CLIENTS: 'axis_clients_v2',
+  USERS: 'axis_users_v2',
+  REVENUES: 'axis_revenues_v2',
+  TAXES: 'axis_taxes_v2',
+  EMPLOYEES: 'axis_employees_v2',
+  DOCUMENTS: 'axis_docs_v2',
+  SIMPLES_HISTORY: 'axis_simples_v2'
+};
+
+const initialClients: Client[] = [
+  { 
+    id: '1', 
+    name: 'Tecnologia Avançada LTDA', 
+    nomeFantasia: 'Tech Avançada',
+    nomeEmpresario: 'João Silva',
+    identifier: '12.345.678/0001-90', 
+    email: 'contato@techavancada.com', 
+    status: 'active', 
+    type: 'PJ', 
+    createdAt: '2024-01-10', 
+    annualRevenue: 180000, 
+    taxAnexo: 'III' 
+  },
+];
+
+const initialUserAccounts: UserAccount[] = [
+  { id: 'USR_ADM_NEW', name: 'Administrador Axis', email: 'adm@ad.com', phone: '(11) 99999-9999', role: UserRole.ADMIN, createdAt: '2026-01-01', lastLogin: 'Nunca', status: 'active', passwordHash: 'MTIzNDU=' },
+  { id: 'USR_001', name: 'João Silva', email: 'joao@email.com', phone: '(11) 98877-6655', role: UserRole.CLIENT, createdAt: '2026-01-05', lastLogin: 'Nunca', status: 'active', passwordHash: 'MTIzNDU2', cnpjVinculado: '12.345.678/0001-90' },
+];
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -27,126 +56,120 @@ const App: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(window.innerWidth < 768);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(new Date().getMonth());
   const [focusedClient, setFocusedClient] = useState<Client | null>(null);
-  const [adminVisualizationMode, setAdminVisualizationMode] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(false);
 
-  // ESTADOS GLOBAIS (Carregados da Nuvem)
-  const [taxRules, setTaxRules] = useState<TaxRules>({ monofasicoHasPisCofins: false, isentoHasPisCofins: false });
-  const [clients, setClients] = useState<Client[]>([]);
-  const [userAccounts, setUserAccounts] = useState<UserAccount[]>([]);
-  const [revenues, setRevenues] = useState<Revenue[]>([]);
-  const [taxes, setTaxes] = useState<Tax[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [documents, setDocuments] = useState<Document[]>([]);
+  const [clients, setClients] = useState<Client[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.CLIENTS);
+    return saved ? JSON.parse(saved) : initialClients;
+  });
 
-  /**
-   * CARREGAMENTO CENTRALIZADO (REGRA DE OURO)
-   */
-  const loadCentralData = useCallback(async (userEmail: string) => {
-    setIsInitialLoading(true);
-    const data = await centralApi.fetchUserData(userEmail);
-    
-    if (data) {
-      setTaxRules(data.taxRules || { monofasicoHasPisCofins: false, isentoHasPisCofins: false });
-      setClients(data.clients || []);
-      setUserAccounts(data.userAccounts || []);
-      setRevenues(data.revenues || []);
-      setTaxes(data.taxes || []);
-      setEmployees(data.employees || []);
-      setDocuments(data.documents || []);
-    }
-    setIsInitialLoading(false);
-  }, []);
+  const [userAccounts, setUserAccounts] = useState<UserAccount[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.USERS);
+    return saved ? JSON.parse(saved) : initialUserAccounts;
+  });
 
-  /**
-   * SINCRONIZAÇÃO IMEDIATA (REGRA DE OURO)
-   */
-  useEffect(() => {
-    if (currentUser && !isInitialLoading) {
-      const sync = async () => {
-        setIsSyncing(true);
-        await centralApi.syncToCloud(currentUser.email, {
-          taxRules, clients, userAccounts, revenues, taxes, employees, documents
-        });
-        setIsSyncing(false);
-      };
-      
-      const timer = setTimeout(sync, 500); // Debounce para não sobrecarregar o "servidor"
-      return () => clearTimeout(timer);
-    }
-  }, [currentUser, taxRules, clients, userAccounts, revenues, taxes, employees, documents, isInitialLoading]);
+  const [revenues, setRevenues] = useState<Revenue[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.REVENUES);
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  const handleLogin = async (email: string, pass: string) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const cleanPass = pass.trim();
-    
-    // Em um app real, o login também seria via centralApi.auth()
-    // Aqui usamos uma lógica de verificação para o Admin Mestre e busca o restante na nuvem
-    if (normalizedEmail === ADMIN_EMAIL_AUTH && cleanPass === DEFAULT_ADMIN_PASS) {
-      const admin: User = { id: 'USR_MASTER', name: 'Administrador Axis', email: normalizedEmail, role: UserRole.ADMIN };
-      setCurrentUser(admin);
-      await loadCentralData(normalizedEmail);
-      setCurrentView(View.DASHBOARD);
-    } else {
-      // Busca usuário nas contas da nuvem (necessário carregar temporariamente ou ter um endpoint de auth)
-      // Para fins deste protótipo, vamos tentar carregar os dados do e-mail informado
-      const data = await centralApi.fetchUserData(normalizedEmail);
-      if (data && data.userAccounts) {
-        const acc = data.userAccounts.find((u: any) => u.email.toLowerCase() === normalizedEmail && u.passwordHash === btoa(cleanPass));
-        if (acc) {
-          setCurrentUser({ id: acc.id, name: acc.name, email: acc.email, role: acc.role, cnpjVinculado: acc.cnpjVinculado });
-          await loadCentralData(normalizedEmail);
-          if (acc.cnpjVinculado) {
-             const client = data.clients?.find((c: any) => c.identifier === acc.cnpjVinculado);
-             if (client) setFocusedClient(client);
-          }
-          setCurrentView(View.DASHBOARD);
-          return;
-        }
+  const [taxes, setTaxes] = useState<Tax[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.TAXES);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [employees, setEmployees] = useState<Employee[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.EMPLOYEES);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [documents, setDocuments] = useState<Document[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.DOCUMENTS);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [simplesHistory, setSimplesHistory] = useState<SimplesCalculationResult[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.SIMPLES_HISTORY);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(clients)); }, [clients]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(userAccounts)); }, [userAccounts]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.REVENUES, JSON.stringify(revenues)); }, [revenues]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.TAXES, JSON.stringify(taxes)); }, [taxes]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees)); }, [employees]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(documents)); }, [documents]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.SIMPLES_HISTORY, JSON.stringify(simplesHistory)); }, [simplesHistory]);
+
+  const handleLogin = (email: string, pass: string) => {
+    const hashed = btoa(pass);
+    const account = userAccounts.find(u => u.email.toLowerCase() === email.toLowerCase() && u.passwordHash === hashed);
+
+    if (account) {
+      if (account.status !== 'active') { alert("Acesso Bloqueado."); return; }
+      const user: User = { id: account.id, name: account.name, role: account.role, cnpjVinculado: account.cnpjVinculado };
+      setCurrentUser(user);
+      if (user.role === UserRole.CLIENT && user.cnpjVinculado) {
+        const client = clients.find(c => c.identifier === user.cnpjVinculado);
+        if (client) setFocusedClient(client);
       }
-      alert("Credenciais inválidas ou usuário não encontrado no banco central.");
+      setCurrentView(View.DASHBOARD);
+      setUserAccounts(prev => prev.map(u => u.id === account.id ? {...u, lastLogin: new Date().toLocaleString('pt-BR')} : u));
+    } else {
+      alert("Credenciais Inválidas.");
     }
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setCurrentView(View.DASHBOARD);
     setFocusedClient(null);
-    setAdminVisualizationMode(false);
-    // Limpa estados para garantir que o próximo login não veja "fantasmas"
-    setClients([]);
-    setRevenues([]);
-    setEmployees([]);
   };
 
   const renderContent = () => {
-    if (isInitialLoading) return (
-      <div className="h-96 flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Acessando Banco Central...</p>
-      </div>
-    );
+    if (!currentUser) return null;
 
-    const commonProps = { 
-      focusedClient, revenues, setRevenues, taxes, setTaxes, documents, setDocuments, 
-      employees, setEmployees, selectedMonthIdx, setSelectedMonthIdx, currentUser, clients, 
-      users: userAccounts, setUsers: setUserAccounts, taxRules, setTaxRules, onViewChange: setCurrentView, adminVisualizationMode
+    const commonProps = {
+      focusedClient,
+      userRole: currentUser.role,
+      revenues, setRevenues,
+      taxes, setTaxes,
+      employees, setEmployees,
+      documents, setDocuments,
+      selectedMonthIdx, setSelectedMonthIdx,
+      currentUser,
+      clients,
+      onSelectClient: (c: Client) => { setFocusedClient(c); setCurrentView(View.DASHBOARD); },
+      onAddClient: (c: Client) => setClients(prev => [c, ...prev]),
+      onDeleteClient: async (id: string) => {
+        const success = await deleteClientRequest(id);
+        if (success) setClients(prev => prev.filter(c => c.id !== id));
+      },
+      onUpdateClient: (c: Client) => setClients(prev => prev.map(old => old.id === c.id ? c : old)),
+      users: userAccounts,
+      setUsers: setUserAccounts
     };
 
     switch (currentView) {
       case View.DASHBOARD: return <Dashboard {...commonProps} />;
-      case View.CLIENTS: return <ClientManagement {...commonProps} onSelectClient={(c) => { setFocusedClient(c); setAdminVisualizationMode(true); setCurrentView(View.DASHBOARD); }} onAddClient={(c) => setClients(p => [c, ...p])} onDeleteClient={(id) => setClients(p => p.filter(x => x.id !== id))} />;
+      case View.CLIENTS: return <ClientManagement {...commonProps} />;
       case View.DOCUMENTS: return <DocumentManager {...commonProps} />;
-      case View.TAXES: return <TaxTracker {...commonProps} userRole={currentUser?.role} />;
+      case View.TAXES: return <TaxTracker {...commonProps} />;
       case View.REVENUE: return <RevenueSchedule {...commonProps} />;
-      case View.INTELLIGENT_TAX: return <IntelligentTaxManager {...commonProps} />;
       case View.AI_CHAT: return <AIChat {...commonProps} />;
+      case View.FINANCIAL_PLANNER: return <FinancialPlanner {...commonProps} />;
       case View.ADMIN_USERS: return <AdminUserManager {...commonProps} />;
       case View.SETTINGS: return <Settings {...commonProps} />;
       case View.PAYROLL: return <PayrollManager {...commonProps} />;
+      case View.TAX_CONSULTANCY: return <TaxConsultancy {...commonProps} />;
       case View.PRICING_CALCULATOR: return <PricingCalculator {...commonProps} />;
-      case View.SIMPLES_CALCULATOR: return <SimplesCalculator {...commonProps} onSaveCalculation={() => {}} history={[]} />;
-      case View.PEOPLE_MANAGEMENT: return <PeopleManagement {...commonProps} />;
+      case View.SIMPLES_CALCULATOR: 
+        return (
+          <SimplesCalculator 
+            focusedClient={focusedClient} 
+            onSaveCalculation={(res) => setSimplesHistory(prev => [res, ...prev])}
+            history={simplesHistory.filter(h => focusedClient ? h.clientId === focusedClient.id : true)}
+          />
+        );
       default: return <Dashboard {...commonProps} />;
     }
   };
@@ -154,21 +177,29 @@ const App: React.FC = () => {
   if (!currentUser) return <Login onLogin={handleLogin} />;
 
   return (
-    <div className="min-h-[100dvh] flex bg-[#F8FAFC] font-sans">
+    <div className="min-h-[100dvh] flex bg-[#F8FAFC] font-sans overflow-x-hidden">
       <Sidebar 
-        currentView={currentView} onViewChange={setCurrentView} userRole={currentUser.role} isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed}
-        onLogout={handleLogout} hasActiveFocus={!!focusedClient} onClearFocus={() => { setFocusedClient(null); setAdminVisualizationMode(false); }} adminVisualizationMode={adminVisualizationMode}
+        currentView={currentView} onViewChange={setCurrentView} userRole={currentUser.role}
+        isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed}
+        onLogout={handleLogout} hasActiveFocus={!!focusedClient}
       />
-      <main className={`flex-1 transition-all duration-300 w-full ${isSidebarCollapsed ? 'md:ml-[68px]' : 'md:ml-64'}`}>
-        {/* INDICADOR DE NUVEM */}
-        <div className="fixed top-4 right-8 z-[60] flex items-center space-x-2 bg-white/80 backdrop-blur px-3 py-1.5 rounded-full border border-slate-100 shadow-sm transition-all hover:shadow-md">
-           <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></div>
-           <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">
-             {isSyncing ? 'Sincronizando Nuvem...' : 'Banco Central: Conectado'}
-           </span>
-        </div>
-
+      <main className={`flex-1 transition-all duration-300 ease-in-out w-full ${isSidebarCollapsed ? 'md:ml-[68px]' : 'md:ml-64'}`}>
+        {currentUser.role === UserRole.ADMIN && focusedClient && (
+          <div className="sticky top-0 z-40 bg-amber-500 text-amber-950 px-4 md:px-6 py-2 flex items-center justify-between shadow-md">
+            <div className="flex items-center space-x-2 text-[10px] md:text-xs font-bold uppercase truncate">
+              <span className="text-lg">👁️</span>
+              <span>Monitorando: <b>{focusedClient.name}</b></span>
+            </div>
+            <button onClick={() => setFocusedClient(null)} className="text-[10px] font-black uppercase bg-white/20 hover:bg-white/40 px-3 py-1 rounded-lg">Ver Painel Global</button>
+          </div>
+        )}
         <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen">
+          <header className="mb-8">
+            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">
+              {focusedClient ? `UNIDADE: ${focusedClient.identifier}` : 'CONTROLADORIA AXIS'}
+            </p>
+            <h1 className="text-xl md:text-2xl font-bold text-slate-800 capitalize tracking-tight">{currentView.replace(/_/g, ' ')}</h1>
+          </header>
           {renderContent()}
         </div>
       </main>

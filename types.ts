@@ -11,28 +11,23 @@ export enum View {
   DOCUMENTS = 'documents',
   TAXES = 'taxes',
   REVENUE = 'revenue',
-  INTELLIGENT_TAX = 'intelligent_tax',
+  REVENUE_TAXES = 'revenue_taxes',
+  INVOICE_ISSUE = 'invoice_issue',
   AI_CHAT = 'ai_chat',
   SETTINGS = 'settings',
+  TAX_CONSULTANCY = 'tax_consultancy',
   PAYROLL = 'payroll',
   PRICING_CALCULATOR = 'pricing_calculator',
+  FINANCIAL_PLANNER = 'financial_planner',
   ADMIN_USERS = 'admin_users',
-  SIMPLES_CALCULATOR = 'simples_calculator',
-  PEOPLE_MANAGEMENT = 'people_management'
+  SIMPLES_CALCULATOR = 'simples_calculator'
 }
 
 export type TaxAnexo = 'I' | 'II' | 'III' | 'IV' | 'V';
-export type ProductCategory = 'normal' | 'monofasico' | 'isento';
-
-export interface TaxRules {
-  monofasicoHasPisCofins: boolean;
-  isentoHasPisCofins: boolean;
-}
 
 export interface User {
   id: string;
   name: string;
-  email: string;
   role: UserRole;
   companyId?: string;
   cnpjVinculado?: string; 
@@ -51,6 +46,17 @@ export interface UserAccount {
   cnpjVinculado?: string;
 }
 
+export interface Employee {
+  id: string;
+  name: string;
+  role: string;
+  salary: number;
+  admissionDate: string;
+  status: 'active' | 'on_vacation' | 'terminated';
+  department: string;
+  clientId?: string;
+}
+
 export interface Client {
   id: string;
   name: string; 
@@ -60,27 +66,40 @@ export interface Client {
   email: string;
   phone?: string;
   status: 'active' | 'inactive';
-  type: 'PJ' | 'PF';
+  type: 'PF' | 'PJ';
   createdAt: string;
   taxAnexo?: TaxAnexo;
   annualRevenue?: number;
-  cnae?: string;
 }
 
-export interface Revenue {
+export interface SimplesCalculationResult {
   id: string;
-  client: string;
-  amount: number;
   date: string;
-  status: 'received' | 'expected';
-  description?: string;
-  source: 'manual' | 'api_cityhall';
-  entryType: 'inflow' | 'outflow';
-  activityType: 'commerce' | 'service';
-  productCategory: ProductCategory;
-  isPisCofinsExempt: boolean;
   clientId: string;
-  createdBy?: string;
+  rbt12: number;
+  monthlyRevenue: number;
+  payroll?: number;
+  fatorR?: number;
+  anexo: TaxAnexo;
+  effectiveRate: number;
+  taxAmount: number;
+  breakdown: {
+    irpj: number;
+    csll: number;
+    pis: number;
+    cofins: number;
+    cpp: number;
+    icms?: number;
+    iss?: number;
+    ipi?: number;
+  };
+}
+
+export interface FinancialMetric {
+  label: string;
+  value: number;
+  change: number;
+  trend: 'up' | 'down' | 'neutral';
 }
 
 export interface Tax {
@@ -102,91 +121,15 @@ export interface Document {
   ownerId: string;
 }
 
-export interface JourneyLog {
+export interface Revenue {
   id: string;
+  client: string;
+  amount: number;
   date: string;
-  type: 'overtime' | 'deduction' | 'absence';
-  hours: number;
-  notes?: string;
-}
-
-export interface Employee {
-  id: string;
-  name: string;
-  role: string;
-  salary: number;
-  admissionDate: string;
-  birthDate?: string;
-  workload?: number; // Carga horária mensal
-  status: 'active' | 'resigned' | 'vacation';
-  department: string;
+  status: 'received' | 'expected';
+  description?: string;
+  source: 'manual' | 'api_cityhall';
+  entryType: 'inflow' | 'outflow';
   clientId: string;
-  hasInsalubridade?: boolean;
-  hasPericulosidade?: boolean;
-  lastVacationDate?: string;
-  journeyLogs?: JourneyLog[];
-}
-
-export interface FinancialMetric {
-  label: string;
-  value: number;
-  change: number;
-  trend: 'up' | 'down' | 'neutral';
-}
-
-/**
- * Interface para a repartição de tributos do Simples Nacional
- */
-export interface Repartition {
-  irpj: number;
-  csll: number;
-  cofins: number;
-  pis: number;
-  cpp: number;
-  icms?: number;
-  iss?: number;
-  ipi?: number;
-}
-
-/**
- * Interface para o resultado de um cálculo de simulação do Simples Nacional
- */
-export interface SimplesCalculationResult {
-  id: string;
-  date: string;
-  clientId: string;
-  activity: 'SERVICO' | 'COMERCIO' | 'INDUSTRIA';
-  anexo: TaxAnexo;
-  rbt12: number;
-  minSaleValue: number;
-  proposedPrice: number;
-  taxAmount: number;
-  effectiveRate: number;
-  cardFeePercent: number;
-  costs: {
-    product: number;
-    shipping: number;
-    commission: number;
-    supplies: number;
-    labor: number;
-    others: number;
-    cardFeeAmount: number;
-    totalDirect: number;
-  };
-  profitability: {
-    netProfit: number;
-    netMargin: number;
-    grossProfit: number;
-    grossMargin: number;
-  };
-  breakdown: {
-    irpj: number;
-    csll: number;
-    pis: number;
-    cofins: number;
-    cpp: number;
-    icms: number;
-    iss: number;
-    ipi: number;
-  };
+  createdBy?: string;
 }

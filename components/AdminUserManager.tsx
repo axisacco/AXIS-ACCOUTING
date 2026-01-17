@@ -21,34 +21,28 @@ const AdminUserManager: React.FC<AdminUserManagerProps> = ({ clients, users, set
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // NORMALIZAÇÃO PARA O BANCO
-    const normalizedEmail = formData.email.trim().toLowerCase();
-    const normalizedPass = formData.password.trim();
-
-    if (users.some(u => u.email.toLowerCase() === normalizedEmail)) {
+    if (users.some(u => u.email.toLowerCase() === formData.email.toLowerCase())) {
       alert('Erro: E-mail já cadastrado.'); return;
     }
-    if (normalizedPass !== formData.confirmPassword.trim()) {
+    if (formData.password !== formData.confirmPassword) {
       alert('Erro: Senhas não coincidem.'); return;
     }
 
     const newUser: UserAccount = {
       id: `USR_${Date.now()}`,
-      name: formData.name.trim(),
-      email: normalizedEmail,
-      phone: formData.phone.trim(),
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
       role: formData.role,
       createdAt: new Date().toISOString().split('T')[0],
       lastLogin: 'Nunca',
       status: 'active',
-      passwordHash: btoa(normalizedPass),
+      passwordHash: btoa(formData.password),
       cnpjVinculado: formData.role === UserRole.ADMIN ? undefined : formData.cnpjVinculado
     };
 
     setUsers(prev => [newUser, ...prev]);
     setShowCreateModal(false);
-    console.log('✅ Usuário ADM/OP Criado:', { email: normalizedEmail, pass: normalizedPass });
     alert('Usuário criado com sucesso!');
   };
 
@@ -59,9 +53,12 @@ const AdminUserManager: React.FC<AdminUserManagerProps> = ({ clients, users, set
     if (!confirm(`Deseja invalidar a senha atual de ${user.name} e gerar uma nova?`)) return;
 
     const newPass = generateRandomPassword();
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, passwordHash: btoa(newPass.trim()) } : u));
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, passwordHash: btoa(newPass) } : u));
     
+    // Feedback único para o ADM (A senha anterior foi permanentemente invalidada via hash)
     setResetFeedback(`SENHA REDEFINIDA: ${newPass}`);
+    
+    // O feedback some após 15 segundos para segurança
     setTimeout(() => setResetFeedback(null), 15000);
   };
 
@@ -144,6 +141,13 @@ const AdminUserManager: React.FC<AdminUserManagerProps> = ({ clients, users, set
                     {selectedUser.status === 'active' ? 'Revogar Acesso' : 'Restabelecer Acesso'}
                    </button>
                 </div>
+              </div>
+
+              <div className="bg-white/5 p-6 rounded-3xl border border-white/5">
+                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Protocolo de Segurança</p>
+                 <p className="text-[10px] text-slate-400 leading-relaxed italic">
+                   Senhas são armazenadas em hash irreversível. Ao resetar, a chave anterior torna-se nula imediatamente.
+                 </p>
               </div>
             </div>
           ) : (

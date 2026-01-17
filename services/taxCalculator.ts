@@ -1,5 +1,16 @@
 
-import { TaxAnexo, Revenue, Repartition, TaxRules } from '../types';
+import { TaxAnexo } from '../types';
+
+interface Repartition {
+  irpj: number;
+  csll: number;
+  cofins: number;
+  pis: number;
+  cpp: number;
+  icms?: number;
+  iss?: number;
+  ipi?: number;
+}
 
 interface TaxBracket {
   limit: number;
@@ -73,9 +84,9 @@ export const calculateSimplesNacional = (rbt12: number, monthlyRevenue: number, 
     pis: taxAmount * repartition.pis,
     cofins: taxAmount * repartition.cofins,
     cpp: taxAmount * repartition.cpp,
-    icms: repartition.icms ? taxAmount * repartition.icms : 0,
-    iss: repartition.iss ? taxAmount * repartition.iss : 0,
-    ipi: repartition.ipi ? taxAmount * repartition.ipi : 0,
+    icms: repartition.icms ? taxAmount * repartition.icms : undefined,
+    iss: repartition.iss ? taxAmount * repartition.iss : undefined,
+    ipi: repartition.ipi ? taxAmount * repartition.ipi : undefined,
   };
 
   return {
@@ -91,34 +102,33 @@ export const calculateSimplesNacional = (rbt12: number, monthlyRevenue: number, 
 };
 
 /**
- * Basic Lucro Presumido calculation for comparison
+ * Realiza o cálculo simplificado do Lucro Presumido para fins de comparação.
  */
-export const calculateLucroPresumido = (monthlyRevenue: number, payroll: number, activity: 'service' | 'commerce') => {
-  const isService = activity === 'service';
-  const presuncaoRate = isService ? 0.32 : 0.08;
-  const baseCalculo = monthlyRevenue * presuncaoRate;
-  
-  // IRPJ: 15% + 10% adicional sobre base > 20k/mês
-  let irpj = baseCalculo * 0.15;
-  if (baseCalculo > 20000) {
-    irpj += (baseCalculo - 20000) * 0.10;
+export const calculateLucroPresumido = (revenue: number, payroll: number, activity: 'service' | 'commerce') => {
+  // Coeficientes de Presunção de Lucro
+  const irpjPresumption = activity === 'service' ? 0.32 : 0.08;
+  const csllPresumption = activity === 'service' ? 0.32 : 0.12;
+
+  const irpjBase = revenue * irpjPresumption;
+  const csllBase = revenue * csllPresumption;
+
+  // IRPJ: 15% + Adicional de 10% sobre o lucro que exceder R$ 20.000,00/mês
+  let irpj = irpjBase * 0.15;
+  if (irpjBase > 20000) {
+    irpj += (irpjBase - 20000) * 0.10;
   }
-  
-  // CSLL: 9% sobre base (presunção de 32% para serviços, 12% para comércio no presumido)
-  const csllPresuncaoRate = isService ? 0.32 : 0.12;
-  const baseCalculoCsll = monthlyRevenue * csllPresuncaoRate;
-  const csll = baseCalculoCsll * 0.09;
-  
-  // PIS/COFINS (Cumulativo no Presumido): 0.65% e 3%
-  const pis = monthlyRevenue * 0.0065;
-  const cofins = monthlyRevenue * 0.03;
-  
-  // ISS (Média 5%) ou ICMS (Média 18%)
-  const iss = isService ? monthlyRevenue * 0.05 : 0;
-  const icms = !isService ? monthlyRevenue * 0.18 : 0;
-  
-  const total = irpj + csll + pis + cofins + iss + icms;
-  
+
+  // CSLL: 9% sobre a base presumida
+  const csll = csllBase * 0.09;
+
+  // PIS/COFINS Cumulativos (Alíquotas fixas de 0,65% e 3%)
+  const pis = revenue * 0.0065;
+  const cofins = revenue * 0.03;
+
+  // ISS (Serviço) ou ICMS (Comércio) - Estimativa para comparação
+  const iss = activity === 'service' ? revenue * 0.05 : 0;
+  const icms = activity === 'commerce' ? revenue * 0.18 : 0;
+
   return {
     irpj,
     csll,
@@ -126,58 +136,6 @@ export const calculateLucroPresumido = (monthlyRevenue: number, payroll: number,
     cofins,
     iss,
     icms,
-    total
-  };
-};
-
-/**
- * Motor Avançado de Lucro Presumido com suporte a Matriz Tributária do Administrador
- */
-export const calculateLucroPresumidoAdvanced = (revenues: Revenue[], rules: TaxRules) => {
-  let totals = {
-    commerce: 0,
-    service: 0,
-    exemptPisCofins: 0,
-    totalGross: 0
-  };
-
-  revenues.forEach(r => {
-    if (r.entryType !== 'inflow') return;
-    totals.totalGross += r.amount;
-    
-    // Determinar isenção baseada nas regras do ADM
-    let isExempt = false;
-    if (r.productCategory === 'monofasico') isExempt = !rules.monofasicoHasPisCofins;
-    if (r.productCategory === 'isento') isExempt = !rules.isentoHasPisCofins;
-
-    if (isExempt) {
-      totals.exemptPisCofins += r.amount;
-    }
-
-    if (r.activityType === 'commerce') totals.commerce += r.amount;
-    else totals.service += r.amount;
-  });
-
-  // IRPJ e CSLL incidem sobre TUDO (independente de ser isento de PIS/COFINS)
-  const irpjBase = (totals.commerce * 0.08) + (totals.service * 0.32);
-  const csllBase = (totals.commerce * 0.12) + (totals.service * 0.32);
-
-  let irpj = irpjBase * 0.15;
-  if (irpjBase > 20000) irpj += (irpjBase - 20000) * 0.10;
-  const csll = csllBase * 0.09;
-
-  // PIS/COFINS incidem apenas sobre o que não é isento segundo o ADM
-  const taxableBase = totals.totalGross - totals.exemptPisCofins;
-  const pis = taxableBase * 0.0065;
-  const cofins = taxableBase * 0.03;
-
-  const iss = totals.service * 0.05;
-  const icms = totals.commerce * 0.18;
-
-  const total = irpj + csll + pis + cofins + iss + icms;
-
-  return {
-    irpj, csll, pis, cofins, iss, icms, total,
-    effectiveRate: totals.totalGross > 0 ? total / totals.totalGross : 0
+    total: irpj + csll + pis + cofins + iss + icms
   };
 };

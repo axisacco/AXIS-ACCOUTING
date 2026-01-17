@@ -3,11 +3,10 @@ import React, { useState, useMemo } from 'react';
 import { Employee, Client } from '../types';
 import { calculatePayrollProvisions } from '../services/payrollCalculator';
 
-// Fix: Adicionado clientId para conformidade com a interface Employee definida em types.ts
 const initialEmployees: Employee[] = [
-  { id: '1', name: 'Ricardo Oliveira', role: 'Desenvolvedor Senior', salary: 8500, admissionDate: '2023-01-15', status: 'active', department: 'TI', clientId: 'CLI_DEMO' },
-  { id: '2', name: 'Juliana Mendes', role: 'Gerente Comercial', salary: 6200, admissionDate: '2023-05-20', status: 'active', department: 'Vendas', clientId: 'CLI_DEMO' },
-  { id: '3', name: 'Marcos Santos', role: 'Analista de Suporte', salary: 3200, admissionDate: '2024-02-10', status: 'active', department: 'TI', clientId: 'CLI_DEMO' },
+  { id: '1', name: 'Ricardo Oliveira', role: 'Desenvolvedor Senior', salary: 8500, admissionDate: '2023-01-15', status: 'active', department: 'TI' },
+  { id: '2', name: 'Juliana Mendes', role: 'Gerente Comercial', salary: 6200, admissionDate: '2023-05-20', status: 'active', department: 'Vendas' },
+  { id: '3', name: 'Marcos Santos', role: 'Analista de Suporte', salary: 3200, admissionDate: '2024-02-10', status: 'active', department: 'TI' },
 ];
 
 interface PayrollManagerProps {

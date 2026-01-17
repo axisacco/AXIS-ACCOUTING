@@ -10,8 +10,6 @@ interface SidebarProps {
   setIsCollapsed: (value: boolean) => void;
   onLogout: () => void;
   hasActiveFocus?: boolean;
-  onClearFocus?: () => void;
-  adminVisualizationMode?: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -21,12 +19,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed,
   setIsCollapsed,
   onLogout,
-  hasActiveFocus = false,
-  onClearFocus,
-  adminVisualizationMode = false
+  hasActiveFocus = false
 }) => {
-  const isAdminUser = userRole === UserRole.ADMIN;
-
   const adminItems = [
     { id: View.DASHBOARD, label: 'Painel Global', icon: '🌍' },
     { id: View.ADMIN_USERS, label: 'Administrador', icon: '🛡️' },
@@ -37,9 +31,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const clientItems = [
     { id: View.DASHBOARD, label: 'Painel', icon: '📊' },
-    { id: View.PEOPLE_MANAGEMENT, label: 'Gestão de Pessoas', icon: '👔' },
-    { id: View.INTELLIGENT_TAX, label: 'Gestão Fiscal', icon: '📡' },
     { id: View.SIMPLES_CALCULATOR, label: 'Calc. Simples', icon: '🧮' },
+    { id: View.FINANCIAL_PLANNER, label: 'Gestão Financeira', icon: '📈' },
     { id: View.REVENUE, label: 'Extrato', icon: '💰' },
     { id: View.DOCUMENTS, label: 'Documentos', icon: '📁' },
     { id: View.AI_CHAT, label: 'Axis AI', icon: '🤖' },
@@ -49,7 +42,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: View.SETTINGS, label: 'Minha Conta', icon: '⚙️' },
   ];
 
-  const navItems = (isAdminUser && !hasActiveFocus) ? [...adminItems, ...commonItems] : [...clientItems, ...commonItems];
+  const navItems = (userRole === UserRole.ADMIN && !hasActiveFocus) ? [...adminItems, ...commonItems] : [...clientItems, ...commonItems];
 
   return (
     <>
@@ -73,7 +66,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           {(!isCollapsed || window.innerWidth < 768) && (
             <div className="overflow-hidden whitespace-nowrap animate-in fade-in duration-500 pl-2">
               <h1 className="text-lg font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent tracking-tighter">
-                AXIS {hasActiveFocus && <span className="text-amber-500 text-[10px] block font-black uppercase tracking-widest mt-[-4px]">{isAdminUser ? (adminVisualizationMode ? 'MODO VISUALIZAÇÃO' : 'ADMIN CONTROL') : 'CLIENT FOCUS'}</span>}
+                AXIS {hasActiveFocus && <span className="text-amber-500 text-[10px] block font-black uppercase tracking-widest mt-[-4px]">FOCUS MODE</span>}
               </h1>
             </div>
           )}
@@ -114,28 +107,13 @@ const Sidebar: React.FC<SidebarProps> = ({
           </ul>
         </nav>
 
-        {isAdminUser && hasActiveFocus && !isCollapsed && (
-          <div className="px-4 py-4 mb-2 space-y-2">
-             <button 
-               onClick={() => { onClearFocus?.(); onViewChange(View.CLIENTS); }}
-               className="w-full flex items-center justify-center space-x-2 py-3 bg-amber-500 text-slate-900 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-amber-400 transition-all"
-             >
-                <span>🔙</span>
-                <span>Sair da Unidade</span>
-             </button>
-          </div>
-        )}
-
         <div className="mt-auto border-t border-slate-800 bg-slate-950/40 p-4">
-          <div className="mb-4 text-center">
-             <p className="text-[7px] text-slate-600 font-black uppercase tracking-[0.2em]">Criptografia de Ponta a Ponta</p>
-          </div>
           <button 
             onClick={onLogout}
             className={`flex items-center text-slate-500 hover:text-red-400 transition-colors ${(isCollapsed && window.innerWidth >= 768) ? 'justify-center w-10 h-10' : 'space-x-3 px-4 w-full'}`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            {(!isCollapsed || window.innerWidth < 768) && <span className="text-xs font-bold uppercase tracking-wider">Encerrar Sessão</span>}
+            {(!isCollapsed || window.innerWidth < 768) && <span className="text-xs font-bold uppercase tracking-wider">Sair</span>}
           </button>
         </div>
       </aside>
