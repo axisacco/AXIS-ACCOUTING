@@ -20,7 +20,9 @@ export enum View {
   PRICING_CALCULATOR = 'pricing_calculator',
   FINANCIAL_PLANNER = 'financial_planner',
   ADMIN_USERS = 'admin_users',
-  SIMPLES_CALCULATOR = 'simples_calculator'
+  SIMPLES_CALCULATOR = 'simples_calculator',
+  PEOPLE_MANAGEMENT = 'people_management',
+  INTELLIGENT_TAX = 'intelligent_tax'
 }
 
 export type TaxAnexo = 'I' | 'II' | 'III' | 'IV' | 'V';
@@ -28,7 +30,7 @@ export type TaxAnexo = 'I' | 'II' | 'III' | 'IV' | 'V';
 export interface User {
   id: string;
   name: string;
-  email: string; // Adicionado para validação de ADM definitivo
+  email: string; 
   role: UserRole;
   companyId?: string;
   cnpjVinculado?: string; 
