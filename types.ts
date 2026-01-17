@@ -22,7 +22,8 @@ export enum View {
   ADMIN_USERS = 'admin_users',
   SIMPLES_CALCULATOR = 'simples_calculator',
   PEOPLE_MANAGEMENT = 'people_management',
-  INTELLIGENT_TAX = 'intelligent_tax'
+  INTELLIGENT_TAX = 'intelligent_tax',
+  INDICADORES = 'indicadores'
 }
 
 export type TaxAnexo = 'I' | 'II' | 'III' | 'IV' | 'V';

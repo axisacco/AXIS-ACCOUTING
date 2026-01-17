@@ -23,6 +23,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const adminItems = [
     { id: View.DASHBOARD, label: 'Painel Global', icon: '🌍' },
+    { id: View.INDICADORES, label: 'Indicadores', icon: '📈' },
     { id: View.ADMIN_USERS, label: 'Administrador', icon: '🛡️' },
     { id: View.CLIENTS, label: 'Gestão Clientes', icon: '👥' },
     { id: View.DOCUMENTS, label: 'Arquivos Gerais', icon: '📁' },
@@ -31,6 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const clientItems = [
     { id: View.DASHBOARD, label: 'Painel', icon: '📊' },
+    { id: View.INDICADORES, label: 'Indicadores', icon: '📈' },
     { id: View.SIMPLES_CALCULATOR, label: 'Calc. Simples', icon: '🧮' },
     { id: View.FINANCIAL_PLANNER, label: 'Gestão Financeira', icon: '📈' },
     { id: View.REVENUE, label: 'Extrato', icon: '💰' },

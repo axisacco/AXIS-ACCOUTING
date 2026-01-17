@@ -103,29 +103,16 @@ const App: React.FC = () => {
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.SIMPLES_HISTORY, JSON.stringify(simplesHistory)); }, [simplesHistory]);
 
   const handleLogin = (email: string, pass: string) => {
-    // NORMALIZAÇÃO MANDATÁRIA
     const normalizedEmailInput = email.trim().toLowerCase();
     const normalizedPassInput = pass.trim();
     const hashedInput = btoa(normalizedPassInput);
 
-    console.group('🛡️ Diagnóstico de Autenticação');
-    console.log('1. Email Recebido:', normalizedEmailInput);
-    console.log('2. Senha Recebida (Hashed):', hashedInput);
-
     const account = userAccounts.find(u => {
       const dbEmail = u.email.trim().toLowerCase();
-      const match = dbEmail === normalizedEmailInput && u.passwordHash === hashedInput;
-      if (dbEmail === normalizedEmailInput) {
-        console.log('👉 Usuário encontrado! Validando senha...');
-        console.log('   Hash no Banco:', u.passwordHash);
-        console.log('   Hash Digitado:', hashedInput);
-      }
-      return match;
+      return dbEmail === normalizedEmailInput && u.passwordHash === hashedInput;
     });
 
     if (account) {
-      console.log('✅ LOGIN SUCESSO');
-      console.groupEnd();
       if (account.status !== 'active') { alert("Acesso Bloqueado."); return; }
       const user: User = { 
         id: account.id, 
@@ -142,8 +129,6 @@ const App: React.FC = () => {
       setCurrentView(View.DASHBOARD);
       setUserAccounts(prev => prev.map(u => u.id === account.id ? {...u, lastLogin: new Date().toLocaleString('pt-BR')} : u));
     } else {
-      console.warn('❌ LOGIN FALHOU: Credenciais não coincidem');
-      console.groupEnd();
       alert("Usuário ou senha incorretos.");
     }
   };
@@ -174,21 +159,13 @@ const App: React.FC = () => {
           alert("ERRO DE SEGURANÇA: Ação restrita ao administrador mestre (adm@ad.com).");
           return;
         }
-
         const clientToDelete = clients.find(c => c.id === id);
         if (!clientToDelete) return;
-
         const success = await deleteClientRequest(id);
         if (success) {
           setClients(prev => prev.filter(c => c.id !== id));
-          setUserAccounts(prev => prev.filter(u => u.cnpjVinculado !== clientToDelete.identifier));
-          setRevenues(prev => prev.filter(r => r.clientId !== id));
-          setTaxes(prev => prev.filter(t => t.clientId !== id));
-          setDocuments(prev => prev.filter(d => d.ownerId !== id));
-          setSimplesHistory(prev => prev.filter(h => h.clientId !== id));
-          
           if (focusedClient?.id === id) setFocusedClient(null);
-          alert(`EXCLUSÃO CONCLUÍDA: A empresa "${clientToDelete.nomeFantasia}" e todos os registros associados foram removidos.`);
+          alert(`EXCLUSÃO CONCLUÍDA.`);
         }
       },
       onUpdateClient: (c: Client) => setClients(prev => prev.map(old => old.id === c.id ? c : old)),
@@ -198,6 +175,7 @@ const App: React.FC = () => {
 
     switch (currentView) {
       case View.DASHBOARD: return <Dashboard {...commonProps} />;
+      case View.INDICADORES: return <div className="w-full h-full min-h-[400px]"></div>; // REGRA: ABA EM BRANCO
       case View.CLIENTS: return <ClientManagement {...commonProps} />;
       case View.DOCUMENTS: return <DocumentManager {...commonProps} />;
       case View.TAXES: return <TaxTracker {...commonProps} />;
