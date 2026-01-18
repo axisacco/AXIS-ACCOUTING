@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
+import TopBar from './components/TopBar';
 import Dashboard from './components/Dashboard';
 import DocumentManager from './components/DocumentManager';
 import TaxTracker from './components/TaxTracker';
@@ -14,6 +15,7 @@ import PricingCalculator from './components/PricingCalculator';
 import FinancialPlanner from './components/FinancialPlanner';
 import AdminUserManager from './components/AdminUserManager';
 import SimplesCalculator from './components/SimplesCalculator';
+import Indicadores from './components/Indicadores';
 import Settings from './components/Settings';
 import Login from './components/Login';
 import { View, UserRole, User, Client, UserAccount, Revenue, Tax, Employee, Document, SimplesCalculationResult } from './types';
@@ -175,7 +177,7 @@ const App: React.FC = () => {
 
     switch (currentView) {
       case View.DASHBOARD: return <Dashboard {...commonProps} />;
-      case View.INDICADORES: return <div className="w-full h-full min-h-[400px]"></div>; // REGRA: ABA EM BRANCO
+      case View.INDICADORES: return <Indicadores {...commonProps} />;
       case View.CLIENTS: return <ClientManagement {...commonProps} />;
       case View.DOCUMENTS: return <DocumentManager {...commonProps} />;
       case View.TAXES: return <TaxTracker {...commonProps} />;
@@ -202,15 +204,25 @@ const App: React.FC = () => {
   if (!currentUser) return <Login onLogin={handleLogin} />;
 
   return (
-    <div className="min-h-[100dvh] flex bg-[#F8FAFC] font-sans overflow-x-hidden">
+    <div className="min-h-[100dvh] flex flex-col md:flex-row bg-[#F8FAFC] font-sans overflow-x-hidden">
+      {/* Barra Superior Mobile */}
+      <TopBar 
+        onMenuClick={() => setIsSidebarCollapsed(false)} 
+        focusedClient={focusedClient} 
+        hasActiveFocus={!!focusedClient}
+      />
+      
+      {/* Barra Lateral / Drawer */}
       <Sidebar 
         currentView={currentView} onViewChange={setCurrentView} userRole={currentUser.role}
         isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed}
         onLogout={handleLogout} hasActiveFocus={!!focusedClient}
       />
-      <main className={`flex-1 transition-all duration-300 ease-in-out w-full ${isSidebarCollapsed ? 'md:ml-[68px]' : 'md:ml-64'}`}>
+      
+      {/* Conteúdo Principal com Ajuste de Padding no Mobile */}
+      <main className={`flex-1 transition-all duration-300 ease-in-out w-full pt-16 md:pt-0 ${isSidebarCollapsed ? 'md:ml-[68px]' : 'md:ml-64'}`}>
         {(currentUser.email === ADMIN_EMAIL_AUTH) && focusedClient && (
-          <div className="sticky top-0 z-40 bg-amber-500 text-amber-950 px-4 md:px-6 py-2 flex items-center justify-between shadow-md">
+          <div className="sticky top-0 md:top-0 z-40 bg-amber-500 text-amber-950 px-4 md:px-6 py-2 flex items-center justify-between shadow-md">
             <div className="flex items-center space-x-2 text-[10px] md:text-xs font-bold uppercase truncate">
               <span className="text-lg">🛡️</span>
               <span>ADMIN MODE: Monitorando <b>{focusedClient.name}</b></span>

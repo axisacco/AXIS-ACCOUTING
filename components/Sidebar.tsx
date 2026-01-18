@@ -48,9 +48,10 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
+      {/* Overlay para Mobile quando o menu está aberto */}
       {!isCollapsed && (
         <div 
-          className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[45] md:hidden transition-opacity"
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[45] md:hidden transition-opacity animate-in fade-in duration-300"
           onClick={() => setIsCollapsed(true)}
         ></div>
       )}
@@ -72,6 +73,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               </h1>
             </div>
           )}
+          
+          {/* Botão de Fechar/Colapsar dinâmico */}
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={`p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 transition-all ${hasActiveFocus ? 'text-amber-500' : 'text-blue-400'} ${!isCollapsed ? 'ml-2' : 'mx-auto hidden md:block'}`}
