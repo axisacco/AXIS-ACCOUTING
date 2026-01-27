@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo } from 'react';
-import { Document, Client, User } from '../types';
+import { Document, Client, User, UserRole } from '../types';
 
 interface DocumentManagerProps {
   focusedClient?: Client | null;
@@ -8,8 +8,6 @@ interface DocumentManagerProps {
   setDocuments: React.Dispatch<React.SetStateAction<Document[]>>;
   currentUser?: User | null;
 }
-
-const ADMIN_EMAIL_AUTH = 'adm@ad.com';
 
 const DocumentManager: React.FC<DocumentManagerProps> = ({ 
   focusedClient, 
@@ -22,8 +20,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
   const [uploadingFileName, setUploadingFileName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // REGRA DE OURO: Validação de Administrador Mestre
-  const isMasterAdmin = currentUser?.email.toLowerCase() === ADMIN_EMAIL_AUTH;
+  // REGRA DE PERMISSÃO: Administrador vs Cliente
+  const isAdmin = currentUser?.role === UserRole.ADMIN;
 
   // Isolamento por Empresa (Mandatário)
   const filteredDocs = useMemo(() => {
@@ -31,8 +29,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
   }, [documents, focusedClient]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isMasterAdmin) {
-      alert("Acesso Negado: Apenas o administrador pode enviar novos documentos.");
+    if (!isAdmin) {
+      alert("Acesso Negado: Apenas administradores podem enviar novos documentos.");
       return;
     }
 
@@ -79,8 +77,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
   };
 
   const handleDeleteDocument = (id: string) => {
-    if (!isMasterAdmin) {
-      alert("Acesso Negado: Apenas o administrador pode excluir documentos.");
+    if (!isAdmin) {
+      alert("Acesso Negado: Apenas administradores podem excluir documentos.");
       return;
     }
 
@@ -99,8 +97,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
           </p>
         </div>
         
-        {/* Botão de Upload VISÍVEL APENAS PARA ADM e com Cliente Focado */}
-        {isMasterAdmin && focusedClient && (
+        {/* Botão de Upload: Visível apenas para Administradores */}
+        {isAdmin && focusedClient && (
           <button 
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
@@ -129,11 +127,11 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
         </div>
       )}
 
-      {!isMasterAdmin && (
+      {!isAdmin && (
         <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-center space-x-3">
           <span className="text-xl">ℹ️</span>
           <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest leading-relaxed">
-            Painel de Consulta: Download de guias e contratos liberado. O envio e exclusão são realizados exclusivamente pela sua equipe contábil.
+            Painel de Consulta: Download de guias e documentos liberado. O envio e exclusão são realizados exclusivamente pela equipe de administração.
           </p>
         </div>
       )}
@@ -172,7 +170,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
                 </td>
                 <td className="px-8 py-6 text-right">
                   <div className="flex justify-end items-center space-x-2">
-                    {/* Botão de Download: Sempre visível */}
+                    {/* Botão de Download: Disponível para todos */}
                     <button 
                       title="Fazer Download"
                       className="w-10 h-10 flex items-center justify-center bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
@@ -180,8 +178,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
                       ⬇️
                     </button>
                     
-                    {/* Botão de Excluir: VISÍVEL APENAS PARA ADM */}
-                    {isMasterAdmin && (
+                    {/* Botão de Excluir: Disponível apenas para Administradores */}
+                    {isAdmin && (
                       <button 
                         onClick={() => handleDeleteDocument(doc.id)}
                         title="Excluir Arquivo"
