@@ -4,9 +4,13 @@ import { Tax, Client } from '../types';
 /**
  * Gera o link do WhatsApp para o cliente com a mensagem de lembrete
  */
-export const sendTaxReminderWhatsApp = (tax: Tax, client: Client) => {
+export const sendTaxReminderWhatsApp = (tax: Tax, client: Client, notify?: (msg: string, type: 'success' | 'error' | 'info' | 'warning') => void) => {
   if (!client.phone) {
-    alert('Erro: Cliente não possui telefone cadastrado.');
+    if (notify) {
+      notify('Erro: Cliente não possui telefone cadastrado.', 'error');
+    } else {
+      alert('Erro: Cliente não possui telefone cadastrado.');
+    }
     return;
   }
 

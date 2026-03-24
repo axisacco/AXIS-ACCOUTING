@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Client, TaxAnexo, SimplesCalculationResult } from '../types';
 import { calculateSimplesNacional } from '../services/taxCalculator';
+import { useNotification } from './ui/Notification';
 
 interface SimplesCalculatorProps {
   focusedClient?: Client | null;
@@ -15,6 +16,7 @@ const SimplesCalculator: React.FC<SimplesCalculatorProps> = ({ focusedClient, on
   const [anexo, setAnexo] = useState<TaxAnexo>(focusedClient?.taxAnexo || 'III');
   const [rbt12, setRbt12] = useState<number>(focusedClient?.annualRevenue || 180000);
   const [payroll12, setPayroll12] = useState<number>(0);
+  const { notify } = useNotification();
 
   // CUSTOS E DESPESAS
   const [productCost, setProductCost] = useState<number>(0);
@@ -118,7 +120,7 @@ const SimplesCalculator: React.FC<SimplesCalculatorProps> = ({ focusedClient, on
     };
 
     onSaveCalculation(newResult);
-    alert('Cálculo de Operação salvo no histórico.');
+    notify('Cálculo de Operação salvo no histórico.', 'success');
   };
 
   const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);

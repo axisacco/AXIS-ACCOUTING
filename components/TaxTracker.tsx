@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Tax, Client, UserRole } from '../types';
 import { sendTaxReminderWhatsApp } from '../services/notificationService';
+import { useNotification } from './ui/Notification';
 
 interface TaxTrackerProps {
   focusedClient?: Client | null;
@@ -15,6 +16,7 @@ const TaxTracker: React.FC<TaxTrackerProps> = ({ focusedClient, userRole, client
   const [showAddModal, setShowAddModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [newTax, setNewTax] = useState({ name: 'DAS - Simples Nacional', amount: '', dueDate: '', clientId: '', file: null as File | null });
+  const { notify } = useNotification();
 
   const isAdmin = userRole === UserRole.ADMIN;
 

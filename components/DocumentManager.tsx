@@ -1,6 +1,8 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 import { Document, Client, User, UserRole } from '../types';
+import { useNotification } from './ui/Notification';
+import ConfirmModal from './ui/ConfirmModal';
 
 interface DocumentManagerProps {
   focusedClient?: Client | null;
@@ -18,7 +20,12 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadingFileName, setUploadingFileName] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; docId: string | null }>({
+    isOpen: false,
+    docId: null
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { notify } = useNotification();
 
   // REGRA DE PERMISSÃO: Administrador vs Cliente
   const isAdmin = currentUser?.role === UserRole.ADMIN;
@@ -30,12 +37,12 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!isAdmin) {
-      alert("Acesso Negado: Apenas administradores podem enviar novos documentos.");
+      notify("Acesso Negado: Apenas administradores podem enviar novos documentos.", 'error');
       return;
     }
 
     if (!focusedClient) {
-      alert("Erro: Selecione uma empresa antes de realizar o upload.");
+      notify("Erro: Selecione uma empresa antes de realizar o upload.", 'error');
       return;
     }
 
@@ -68,6 +75,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
             setIsUploading(false);
             setUploadProgress(0);
             setUploadingFileName('');
+            notify('Documento enviado com sucesso!', 'success');
           }, 500);
         } else {
           setUploadProgress(Math.floor(progress));
@@ -78,17 +86,33 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
 
   const handleDeleteDocument = (id: string) => {
     if (!isAdmin) {
-      alert("Acesso Negado: Apenas administradores podem excluir documentos.");
+      notify("Acesso Negado: Apenas administradores podem excluir documentos.", 'error');
       return;
     }
 
-    if (confirm("Deseja excluir permanentemente este documento?")) {
-      setDocuments(prev => prev.filter(doc => doc.id !== id));
+    const doc = documents.find(d => d.id === id);
+    setConfirmDelete({ isOpen: true, docId: id });
+  };
+
+  const confirmDeleteAction = () => {
+    if (confirmDelete.docId) {
+      setDocuments(prev => prev.filter(doc => doc.id !== confirmDelete.docId));
+      notify('Documento excluído com sucesso!', 'success');
     }
+    setConfirmDelete({ isOpen: false, docId: null });
   };
 
   return (
     <div className="space-y-6">
+      <ConfirmModal
+        isOpen={confirmDelete.isOpen}
+        onClose={() => setConfirmDelete({ isOpen: false, docId: null })}
+        onConfirm={confirmDeleteAction}
+        title="Excluir Documento"
+        message="Deseja excluir permanentemente este documento?"
+        confirmText="Excluir"
+        type="danger"
+      />
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
         <div className="space-y-1">
           <h2 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight uppercase">Repositório de Arquivos</h2>

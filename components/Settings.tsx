@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, UserAccount } from '../types';
+import { useNotification } from './ui/Notification';
 
 interface SettingsProps {
   currentUser: User | null;
@@ -12,6 +13,7 @@ const Settings: React.FC<SettingsProps> = ({ currentUser, users, setUsers }) => 
   const [currentPass, setCurrentPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
+  const { notify } = useNotification();
 
   const handleChangePassword = (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,19 +23,19 @@ const Settings: React.FC<SettingsProps> = ({ currentUser, users, setUsers }) => 
     if (!userAcc) return;
 
     if (btoa(currentPass) !== userAcc.passwordHash) {
-      alert("Erro: Senha atual incorreta."); return;
+      notify("Erro: Senha atual incorreta.", 'error'); return;
     }
 
     if (newPass !== confirmPass) {
-      alert("Erro: Novas senhas não coincidem."); return;
+      notify("Erro: Novas senhas não coincidem.", 'error'); return;
     }
 
     if (newPass.length < 6) {
-      alert("Erro: A nova senha deve ter no mínimo 6 caracteres."); return;
+      notify("Erro: A nova senha deve ter no mínimo 6 caracteres.", 'error'); return;
     }
 
     setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, passwordHash: btoa(newPass) } : u));
-    alert("Senha alterada com sucesso!");
+    notify("Senha alterada com sucesso!", 'success');
     setCurrentPass(''); setNewPass(''); setConfirmPass('');
   };
 

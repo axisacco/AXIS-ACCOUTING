@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Revenue, Client, User } from '../types';
+import { useNotification } from './ui/Notification';
 
 interface RevenueScheduleProps {
   focusedClient?: Client | null;
@@ -17,6 +18,7 @@ const RevenueSchedule: React.FC<RevenueScheduleProps> = ({ focusedClient, revenu
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const { notify } = useNotification();
 
   const [formData, setFormData] = useState({
     client: '', amount: '', date: new Date().toISOString().split('T')[0],
@@ -41,7 +43,7 @@ const RevenueSchedule: React.FC<RevenueScheduleProps> = ({ focusedClient, revenu
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!focusedClient) { alert("Erro: Contexto de empresa não definido."); return; }
+    if (!focusedClient) { notify("Erro: Contexto de empresa não definido.", 'error'); return; }
     
     if (editingId) {
       setRevenues(prev => prev.map(r => r.id === editingId ? {

@@ -74,6 +74,9 @@ export interface Client {
   createdAt: string;
   taxAnexo?: TaxAnexo;
   annualRevenue?: number;
+  cnaePrimary?: string;
+  cnaeSecondary?: string;
+  integrationStatus?: 'connected' | 'disconnected' | 'error';
 }
 
 export interface SimplesCalculationResult {

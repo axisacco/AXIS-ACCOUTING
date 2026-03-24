@@ -16,6 +16,7 @@ import FinancialPlanner from './components/FinancialPlanner';
 import AdminUserManager from './components/AdminUserManager';
 import SimplesCalculator from './components/SimplesCalculator';
 import Indicadores from './components/Indicadores';
+import { NotificationProvider, useNotification } from './components/ui/Notification';
 import Settings from './components/Settings';
 import Login from './components/Login';
 import { View, UserRole, User, Client, UserAccount, Revenue, Tax, Employee, Document, SimplesCalculationResult } from './types';
@@ -54,8 +55,14 @@ const initialUserAccounts: UserAccount[] = [
   { id: 'USR_001', name: 'João Silva', email: 'joao@email.com', phone: '(11) 98877-6655', role: UserRole.CLIENT, createdAt: '2026-01-05', lastLogin: 'Nunca', status: 'active', passwordHash: 'MTIzNDU2', cnpjVinculado: '12.345.678/0001-90' },
 ];
 
-const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+const AppContent: React.FC = () => {
+  const { notify } = useNotification();
+  const [currentUser, setCurrentUser] = useState<User | null>({
+    id: 'USR_ADM_NEW',
+    name: 'Administrador Axis',
+    email: 'adm@ad.com',
+    role: UserRole.ADMIN
+  });
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(window.innerWidth < 768);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(new Date().getMonth());
@@ -115,7 +122,10 @@ const App: React.FC = () => {
     });
 
     if (account) {
-      if (account.status !== 'active') { alert("Acesso Bloqueado."); return; }
+      if (account.status !== 'active') { 
+        notify("Acesso Bloqueado.", "error"); 
+        return; 
+      }
       const user: User = { 
         id: account.id, 
         name: account.name, 
@@ -130,8 +140,9 @@ const App: React.FC = () => {
       }
       setCurrentView(View.DASHBOARD);
       setUserAccounts(prev => prev.map(u => u.id === account.id ? {...u, lastLogin: new Date().toLocaleString('pt-BR')} : u));
+      notify(`Bem-vindo, ${user.name}!`, "success");
     } else {
-      alert("Usuário ou senha incorretos.");
+      notify("Usuário ou senha incorretos.", "error");
     }
   };
 
@@ -139,6 +150,7 @@ const App: React.FC = () => {
     setCurrentUser(null);
     setCurrentView(View.DASHBOARD);
     setFocusedClient(null);
+    notify("Sessão encerrada.", "info");
   };
 
   const renderContent = () => {
@@ -158,7 +170,7 @@ const App: React.FC = () => {
       onAddClient: (c: Client) => setClients(prev => [c, ...prev]),
       onDeleteClient: async (id: string) => {
         if (currentUser.email.toLowerCase() !== ADMIN_EMAIL_AUTH) {
-          alert("ERRO DE SEGURANÇA: Ação restrita ao administrador mestre (adm@ad.com).");
+          notify("ERRO DE SEGURANÇA: Ação restrita ao administrador mestre.", "error");
           return;
         }
         const clientToDelete = clients.find(c => c.id === id);
@@ -167,7 +179,7 @@ const App: React.FC = () => {
         if (success) {
           setClients(prev => prev.filter(c => c.id !== id));
           if (focusedClient?.id === id) setFocusedClient(null);
-          alert(`EXCLUSÃO CONCLUÍDA.`);
+          notify(`Empresa ${clientToDelete.nomeFantasia} excluída.`, "success");
         }
       },
       onUpdateClient: (c: Client) => setClients(prev => prev.map(old => old.id === c.id ? c : old)),
@@ -223,9 +235,15 @@ const App: React.FC = () => {
       <main className={`flex-1 transition-all duration-300 ease-in-out w-full pt-16 md:pt-0 ${isSidebarCollapsed ? 'md:ml-[68px]' : 'md:ml-64'}`}>
         {(currentUser.email === ADMIN_EMAIL_AUTH) && focusedClient && (
           <div className="sticky top-0 md:top-0 z-40 bg-amber-500 text-amber-950 px-4 md:px-6 py-2 flex items-center justify-between shadow-md">
-            <div className="flex items-center space-x-2 text-[10px] md:text-xs font-bold uppercase truncate">
-              <span className="text-lg">🛡️</span>
-              <span>ADMIN MODE: Monitorando <b>{focusedClient.name}</b></span>
+            <div className="flex items-center space-x-4 text-[10px] md:text-xs font-bold uppercase truncate">
+              <div className="flex items-center space-x-2">
+                <span className="text-lg">🛡️</span>
+                <span>ADMIN MODE: Monitorando <b>{focusedClient.name}</b></span>
+              </div>
+              <div className="hidden sm:flex items-center space-x-2 bg-white/20 px-3 py-1 rounded-full">
+                <span className={`w-2 h-2 rounded-full ${focusedClient.integrationStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`}></span>
+                <span>Portal: {focusedClient.integrationStatus === 'connected' ? 'Conectado' : 'Desconectado'}</span>
+              </div>
             </div>
             <button onClick={() => setFocusedClient(null)} className="text-[10px] font-black uppercase bg-white/20 hover:bg-white/40 px-3 py-1 rounded-lg">Voltar ao Global</button>
           </div>
@@ -241,6 +259,14 @@ const App: React.FC = () => {
         </div>
       </main>
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <NotificationProvider>
+      <AppContent />
+    </NotificationProvider>
   );
 };
 

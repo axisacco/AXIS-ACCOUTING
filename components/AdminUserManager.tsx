@@ -1,6 +1,8 @@
 
 import React, { useState } from 'react';
 import { UserAccount, UserRole, Client } from '../types';
+import { useNotification } from './ui/Notification';
+import ConfirmModal from './ui/ConfirmModal';
 
 interface AdminUserManagerProps {
   clients: Client[];
@@ -9,9 +11,15 @@ interface AdminUserManagerProps {
 }
 
 const AdminUserManager: React.FC<AdminUserManagerProps> = ({ clients, users, setUsers }) => {
+  const { notify } = useNotification();
   const [selectedUser, setSelectedUser] = useState<UserAccount | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; userId: string; userName: string }>({
+    isOpen: false,
+    userId: '',
+    userName: ''
+  });
 
   const [formData, setFormData] = useState({
     name: '', email: '', password: '', confirmPassword: '', phone: '', role: UserRole.CLIENT, status: 'active' as any, cnpjVinculado: ''
@@ -22,15 +30,16 @@ const AdminUserManager: React.FC<AdminUserManagerProps> = ({ clients, users, set
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // NORMALIZAÇÃO PARA O BANCO
     const normalizedEmail = formData.email.trim().toLowerCase();
     const normalizedPass = formData.password.trim();
 
     if (users.some(u => u.email.toLowerCase() === normalizedEmail)) {
-      alert('Erro: E-mail já cadastrado.'); return;
+      notify('Erro: E-mail já cadastrado.', 'error'); 
+      return;
     }
     if (normalizedPass !== formData.confirmPassword.trim()) {
-      alert('Erro: Senhas não coincidem.'); return;
+      notify('Erro: Senhas não coincidem.', 'error'); 
+      return;
     }
 
     const newUser: UserAccount = {
@@ -48,25 +57,25 @@ const AdminUserManager: React.FC<AdminUserManagerProps> = ({ clients, users, set
 
     setUsers(prev => [newUser, ...prev]);
     setShowCreateModal(false);
-    console.log('✅ Usuário ADM/OP Criado:', { email: normalizedEmail, pass: normalizedPass });
-    alert('Usuário criado com sucesso!');
+    notify('Usuário criado com sucesso!', 'success');
+    setFormData({ name: '', email: '', password: '', confirmPassword: '', phone: '', role: UserRole.CLIENT, status: 'active', cnpjVinculado: '' });
   };
 
   const handleResetPassword = (userId: string) => {
     const user = users.find(u => u.id === userId);
     if (!user) return;
 
-    if (!confirm(`Deseja invalidar a senha atual de ${user.name} e gerar uma nova?`)) return;
-
     const newPass = generateRandomPassword();
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, passwordHash: btoa(newPass.trim()) } : u));
     
     setResetFeedback(`SENHA REDEFINIDA: ${newPass}`);
+    notify('Senha redefinida com sucesso!', 'success');
     setTimeout(() => setResetFeedback(null), 15000);
   };
 
   const toggleStatus = (id: string) => {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, status: u.status === 'active' ? 'blocked' : 'active' } : u));
+    notify('Status do usuário atualizado.', 'info');
   };
 
   return (
@@ -112,7 +121,10 @@ const AdminUserManager: React.FC<AdminUserManagerProps> = ({ clients, users, set
                   </td>
                   <td className="px-8 py-5 text-right">
                     <button 
-                      onClick={(e) => {e.stopPropagation(); handleResetPassword(user.id);}} 
+                      onClick={(e) => {
+                        e.stopPropagation(); 
+                        setConfirmModal({ isOpen: true, userId: user.id, userName: user.name });
+                      }} 
                       className="text-[10px] font-black text-amber-600 uppercase hover:bg-amber-50 px-4 py-2 rounded-xl transition-all"
                     >
                       Resetar Senha
@@ -174,6 +186,16 @@ const AdminUserManager: React.FC<AdminUserManagerProps> = ({ clients, users, set
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={() => handleResetPassword(confirmModal.userId)}
+        title="Resetar Senha"
+        message={`Deseja realmente invalidar a senha atual de ${confirmModal.userName} e gerar uma nova?`}
+        confirmText="Gerar Nova Senha"
+        type="warning"
+      />
     </div>
   );
 };
